@@ -1,0 +1,10 @@
+{
+  "name": "Presenter to replay",
+  "expected_scene": "Presenter",
+  "steps": [
+    {"action": "audio_mute", "parameters": {"source_name": "Microphone", "muted": true}},
+    {"action": "source_settings", "parameters": {"source_name": "Caption", "settings": {"text": "REPLAY"}}},
+    {"action": "scene_select", "parameters": {"scene_name": "Replay", "target": "program"}},
+    {"action": "media_action", "parameters": {"source_name": "Replay clip", "action": "restart"}}
+  ]
+}

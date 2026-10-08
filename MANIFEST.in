@@ -1,0 +1,10 @@
+include LICENSE README.md
+include run_server.py
+recursive-include docs *.md
+recursive-include examples *.json
+recursive-include tools *.py
+recursive-include tests *.py
+global-exclude *.pyc
+prune outputs
+prune captures
+prune .agent

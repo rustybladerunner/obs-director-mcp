@@ -1,0 +1,9 @@
+{
+  "name": "Spotlight layout",
+  "expected_scene": "Program",
+  "steps": [
+    {"action": "source_visibility", "parameters": {"scene_name": "Program", "scene_item_id": 1, "enabled": true}},
+    {"action": "source_transform", "parameters": {"scene_name": "Program", "scene_item_id": 1, "transform": {"positionX": 120, "positionY": 80, "scaleX": 1.25, "scaleY": 1.25}}},
+    {"action": "source_settings", "parameters": {"source_name": "Caption", "settings": {"text": "A closer look"}}}
+  ]
+}

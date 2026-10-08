@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "obs-director-mcp"
+version = "0.1.0"
+description = "Local OBS controls, capture evidence, and deterministic director cues over MCP"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{name = "OBS MCP contributors"}]
+dependencies = ["mcp>=1.21.1,<2", "websockets>=16,<17", "Pillow>=12,<13"]
+keywords = ["obs", "mcp", "streaming", "automation", "broadcast"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+  "Topic :: Multimedia :: Video",
+]
+
+[project.scripts]
+obs-director-mcp = "obs_director.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

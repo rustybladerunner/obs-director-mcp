@@ -1,0 +1,51 @@
+# Local credentials and OBS settings
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+credentials.json
+credentials.toml
+secrets.json
+secrets.toml
+obs-websocket.json
+obs-websocket.ini
+obs-studio/
+.obs-mcp/
+
+# Local evidence and recording output
+runtime/
+captures/
+recordings/
+local-data/
+outputs/
+
+# Python environments, caches and distributions
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.tmp/
+.tox/
+.nox/
+.eggs/
+*.egg-info/
+build/
+dist/
+.coverage
+htmlcov/
+
+# Editor and operating-system scratch files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

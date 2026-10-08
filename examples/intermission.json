@@ -1,0 +1,11 @@
+{
+  "name": "Intermission",
+  "expected_scene": "Program",
+  "steps": [
+    {"action": "source_settings", "parameters": {"source_name": "Intermission caption", "settings": {"text": "We will be right back"}}},
+    {"action": "scene_select", "parameters": {"scene_name": "Intermission", "target": "program"}},
+    {"action": "audio_mute", "parameters": {"source_name": "Microphone", "muted": true}},
+    {"action": "audio_volume", "parameters": {"source_name": "Intermission music", "volume_db": -18}},
+    {"action": "media_action", "parameters": {"source_name": "Intermission music", "action": "play"}}
+  ]
+}
