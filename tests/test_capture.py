@@ -1,6 +1,7 @@
 """Capture lifecycle regression checks against synthetic OBS, never live OBS."""
 
 import base64
+from contextlib import contextmanager
 import hashlib
 import io
 import json
@@ -48,6 +49,13 @@ class FakeObsState:
         self.stream_status_override = None
         self.ignore_directory_changes = False
         self.missing_capabilities = set()
+        self.start_delay = self.stop_delay = 0
+        self.pending_start = self.pending_stop = False
+        self.start_ack_error = self.stop_ack_error = None
+        self.start_status_override = self.stop_status_override = None
+        self.emit_start_event = self.emit_stop_event = True
+        self.start_hook = self.stop_hook = None
+        self.get_directory_hook = None
 
     def factory(self, *args, **kwargs):
         client = FakeObsClient(self)
@@ -66,10 +74,32 @@ class FakeObsState:
         self.duration = 1
         self.emit("OBS_WEBSOCKET_OUTPUT_STARTED")
 
+    def finish_start(self):
+        self.pending_start = False
+        self.active = True
+        self.duration = 1
+        if self.emit_start_event:
+            self.emit("OBS_WEBSOCKET_OUTPUT_STARTED")
+        if self.start_hook:
+            self.start_hook()
+
+    def finish_stop(self):
+        self.pending_stop = False
+        self.active = False
+        if self.emit_stop_event:
+            self.emit("OBS_WEBSOCKET_OUTPUT_STOPPED")
+        output = Path(self.output_override or Path(self.directory) / "recording.mkv")
+        if self.write_output:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(RECORDING_BYTES)
+        if self.stop_hook:
+            self.stop_hook()
+
 
 class FakeObsClient:
     def __init__(self, state):
         self.state = state
+        self.settings = ObsSettings()
         self.record_events = []
         self.closed = False
 
@@ -101,6 +131,16 @@ class FakeObsClient:
         if name == "GetRecordStatus":
             if state.record_status_override is not None:
                 return state.record_status_override
+            if state.pending_start:
+                if state.start_delay > 0:
+                    state.start_delay -= 1
+                else:
+                    state.finish_start()
+            if state.pending_stop:
+                if state.stop_delay > 0:
+                    state.stop_delay -= 1
+                else:
+                    state.finish_stop()
             return {"outputActive": state.active, "outputPaused": state.paused,
                     "outputDuration": state.duration, "outputBytes": 1024 if state.active else 0,
                     "outputTimecode": "00:00:01.000"}
@@ -129,6 +169,8 @@ class FakeObsClient:
                     "availableDiskSpace": 100000.0, "cpuUsage": 3.0, "memoryUsage": 200.0,
                     "averageFrameRenderTime": 1.0}
         if name == "GetRecordDirectory":
+            if state.get_directory_hook:
+                state.get_directory_hook()
             return {"recordDirectory": state.directory}
         if name == "SetRecordDirectory":
             if not state.ignore_directory_changes:
@@ -138,17 +180,23 @@ class FakeObsClient:
             state.current_scene = data["sceneName"]
             return {}
         if name == "StartRecord":
-            state.active = True
-            state.duration = 1
-            state.emit("OBS_WEBSOCKET_OUTPUT_STARTED")
+            state.pending_start = True
+            if not state.start_delay:
+                state.finish_start()
+            if state.start_status_override is not None:
+                state.record_status_override = state.start_status_override
+            if state.start_ack_error:
+                raise state.start_ack_error
             return {}
         if name == "StopRecord":
-            state.active = False
-            state.emit("OBS_WEBSOCKET_OUTPUT_STOPPED")
             output = Path(state.output_override or Path(state.directory) / "recording.mkv")
-            if state.write_output:
-                output.parent.mkdir(parents=True, exist_ok=True)
-                output.write_bytes(RECORDING_BYTES)
+            state.pending_stop = True
+            if not state.stop_delay:
+                state.finish_stop()
+            if state.stop_status_override is not None:
+                state.record_status_override = state.stop_status_override
+            if state.stop_ack_error:
+                raise state.stop_ack_error
             return {"outputPath": str(output)}
         if name == "GetSourceScreenshot":
             image = state.screenshots.pop(0) if len(state.screenshots) > 1 else state.screenshots[0]
@@ -180,6 +228,192 @@ class CaptureLifecycleTests(unittest.TestCase):
 
     def manifest(self, session_id):
         return json.loads((self.evidence / session_id / "manifest.json").read_text(encoding="utf-8"))
+
+    @contextmanager
+    def fast_transitions(self):
+        clock = [0.0]
+        with patch.object(obs_bridge, "RECORD_TRANSITION_TIMEOUT", 0.3), \
+                patch.object(obs_bridge.time, "monotonic", side_effect=lambda: clock[0]), \
+                patch.object(obs_bridge.time, "sleep", side_effect=lambda seconds: clock.__setitem__(0, clock[0] + seconds)):
+            yield
+
+    def unresolved_manifest(self):
+        session = self.service.capture_sessions()["sessions"][0]
+        manifest = self.manifest(session["session_id"])
+        self.assertEqual("failed", manifest["state"])
+        self.assertTrue(manifest["may_be_recording"])
+        self.assertTrue(session["may_be_recording"])
+        self.assertFalse(manifest["record_directory_restored"])
+        self.assertFalse(session["stop_ownership_held"])
+        self.assertEqual(manifest["record_directory"], self.obs.directory)
+        return manifest
+
+    def test_acknowledged_start_waits_through_false_until_same_connection_event_and_active(self):
+        self.obs.start_delay = 2
+        with self.fast_transitions():
+            started = self.start()
+        self.assertEqual("recording", started["state"])
+        self.assertTrue(started["may_be_recording"])
+        self.assertTrue(self.obs.active)
+        self.assertEqual(1, len(self.obs.clients))
+        self.assertFalse(self.obs.clients[0].closed)
+        self.assertEqual(started["record_directory"], self.obs.directory)
+        self.assertEqual(1, sum(name == "SetRecordDirectory" for name, _ in self.obs.calls))
+        self.assertEqual(1, sum(name == "StartRecord" for name, _ in self.obs.calls))
+        self.service.stop_recording(started["session_id"], dry_run=False)
+
+    def test_unconfirmed_start_keeps_directory_and_blocks_restart_even_while_inactive(self):
+        self.obs.start_delay = 100
+        with self.fast_transitions(), self.assertRaises(obs_bridge.ObsError):
+            self.start()
+        self.assertFalse(self.obs.active)
+        manifest = self.unresolved_manifest()
+        before = self.mutations()
+        restarted = obs_bridge.CaptureService(self.obs.factory, self.evidence)
+        with self.assertRaisesRegex(obs_bridge.ObsError, "unresolved capture blocks"):
+            restarted.start_recording("Retry", "test", "Course", dry_run=False)
+        self.assertEqual(before, self.mutations())
+        self.obs.finish_start()  # OBS eventually starts after our bounded wait ended.
+        self.assertTrue(self.obs.active)
+        self.assertEqual(manifest["record_directory"], self.obs.directory)
+        self.assertTrue(self.manifest(manifest["session_id"])["may_be_recording"])
+        with self.assertRaises(obs_bridge.ObsError):
+            restarted.stop_recording(manifest["session_id"], dry_run=False)
+        self.assertFalse(any(name == "StopRecord" for name, _ in self.obs.calls))
+
+    def test_start_lost_ack_keeps_persistent_uncertainty_without_adopting_active_output(self):
+        self.obs.start_ack_error = obs_bridge.ObsError("Synthetic acknowledgement lost")
+        with self.assertRaises(obs_bridge.ObsError):
+            self.start()
+        manifest = self.unresolved_manifest()
+        self.assertTrue(self.obs.active)
+        self.assertIn("start_requested_at", manifest)
+        self.assertEqual(1, len(self.obs.clients))
+        self.assertTrue(self.obs.clients[0].closed)
+        self.assertFalse(any(name == "StopRecord" for name, _ in self.obs.calls))
+
+    def test_malformed_start_status_keeps_uncertainty_and_directory(self):
+        for index, status in enumerate(({}, {"outputActive": None}, {"outputActive": 1}, {"outputActive": "false"})):
+            with self.subTest(status=status):
+                # Separate evidence roots model independent failed launches.
+                self.evidence = self.root / ("malformed-" + str(index))
+                self.obs = FakeObsState(self.original_directory)
+                self.service = obs_bridge.CaptureService(self.obs.factory, self.evidence)
+                self.obs.start_status_override = status
+                with self.assertRaises(obs_bridge.ObsError):
+                    self.start()
+                self.unresolved_manifest()
+
+    def test_active_without_start_event_does_not_grant_lease(self):
+        self.obs.emit_start_event = False
+        with self.fast_transitions(), self.assertRaises(obs_bridge.ObsError):
+            self.start()
+        self.unresolved_manifest()
+
+    def test_start_wait_rejects_intervening_stop_restart(self):
+        self.obs.start_delay = 1
+        self.obs.start_hook = self.obs.replace_recording
+        with self.fast_transitions(), self.assertRaises(obs_bridge.ObsError):
+            self.start()
+        self.unresolved_manifest()
+        self.assertFalse(any(name == "StopRecord" for name, _ in self.obs.calls))
+
+    def test_stop_ack_waits_for_inactive_and_stopped_event_before_file_verification(self):
+        started = self.start()
+        self.obs.stop_delay = 2
+        with self.fast_transitions():
+            stopped = self.service.stop_recording(started["session_id"], dry_run=False)
+        self.assertEqual("completed", stopped["state"])
+        self.assertFalse(stopped["may_be_recording"])
+        self.assertIn("stop_confirmed_at", stopped)
+        self.assertEqual(hashlib.sha256(RECORDING_BYTES).hexdigest(), stopped["output_sha256"])
+        self.assertTrue(stopped["record_directory_restored"])
+        self.assertEqual(1, sum(name == "StopRecord" for name, _ in self.obs.calls))
+        self.assertEqual(1, len(self.obs.clients))
+
+    def test_stop_timeout_cannot_restore_or_clear_uncertainty(self):
+        started = self.start()
+        self.obs.stop_delay = 100
+        with self.fast_transitions(), self.assertRaises(obs_bridge.ObsError):
+            self.service.stop_recording(started["session_id"], dry_run=False)
+        self.unresolved_manifest()
+        self.assertTrue(self.obs.active)
+
+    def test_stop_lost_ack_after_inactive_still_preserves_uncertainty(self):
+        started = self.start()
+        self.obs.stop_ack_error = obs_bridge.ObsError("Synthetic stop acknowledgement lost")
+        with self.assertRaises(obs_bridge.ObsError):
+            self.service.stop_recording(started["session_id"], dry_run=False)
+        self.unresolved_manifest()
+        self.assertFalse(self.obs.active)
+
+    def test_stop_followed_by_new_pending_start_never_restores_directory(self):
+        started = self.start()
+        self.obs.stop_hook = lambda: self.obs.emit("OBS_WEBSOCKET_OUTPUT_STARTING")
+        with self.assertRaises(obs_bridge.ObsError):
+            self.service.stop_recording(started["session_id"], dry_run=False)
+        self.unresolved_manifest()
+        self.assertFalse(self.obs.active)
+
+    def test_pending_start_ingested_during_directory_read_prevents_restore_setter(self):
+        started = self.start()
+        self.obs.get_directory_hook = lambda: self.obs.emit("OBS_WEBSOCKET_OUTPUT_STARTING")
+        stopped = self.service.stop_recording(started["session_id"], dry_run=False)
+        self.assertEqual("completed", stopped["state"])
+        self.assertFalse(stopped["record_directory_restored"])
+        self.assertEqual(started["record_directory"], self.obs.directory)
+        self.assertEqual(1, sum(name == "SetRecordDirectory" for name, _ in self.obs.calls))
+
+    def test_external_pending_start_during_prestart_failure_prevents_restore(self):
+        self.obs.fail_requests["SetCurrentProgramScene"] = obs_bridge.ObsError("Synthetic scene failure")
+        def inject_only_during_cleanup():
+            if any(name == "SetCurrentProgramScene" for name, _ in self.obs.calls):
+                self.obs.emit("OBS_WEBSOCKET_OUTPUT_STARTING")
+        self.obs.get_directory_hook = inject_only_during_cleanup
+        with self.assertRaises(obs_bridge.ObsError):
+            self.start()
+        session = self.service.capture_sessions()["sessions"][0]
+        manifest = self.manifest(session["session_id"])
+        self.assertFalse(manifest["record_directory_restored"])
+        self.assertEqual(manifest["record_directory"], self.obs.directory)
+        self.assertEqual(1, sum(name == "SetRecordDirectory" for name, _ in self.obs.calls))
+        self.assertFalse(any(name == "StartRecord" for name, _ in self.obs.calls))
+
+    def test_contradictory_start_event_cannot_grant_lease(self):
+        def contradict_event():
+            self.obs.clients[0].record_events[-1]["outputActive"] = False
+        self.obs.start_hook = contradict_event
+        with self.assertRaises(obs_bridge.ObsError):
+            self.start()
+        self.unresolved_manifest()
+
+    def test_contradictory_stop_event_cannot_claim_finalization(self):
+        started = self.start()
+        def contradict_event():
+            self.obs.clients[0].record_events[-1]["outputActive"] = True
+        self.obs.stop_hook = contradict_event
+        with self.assertRaises(obs_bridge.ObsError):
+            self.service.stop_recording(started["session_id"], dry_run=False)
+        self.unresolved_manifest()
+
+    def test_wait_caps_rpc_timeout_and_refuses_success_after_deadline(self):
+        client = self.obs.factory()
+        original = client.settings
+        clock = [0.0]
+        observed_timeouts = []
+        def delayed_status(_name):
+            observed_timeouts.append(client.settings.timeout)
+            clock[0] += 0.4
+            self.obs.active = True
+            self.obs.emit("OBS_WEBSOCKET_OUTPUT_STARTED")
+            return {"outputActive": True}
+        with patch.object(obs_bridge, "RECORD_TRANSITION_TIMEOUT", 0.3), \
+                patch.object(obs_bridge.time, "monotonic", side_effect=lambda: clock[0]), \
+                patch.object(client, "request", side_effect=delayed_status), \
+                self.assertRaisesRegex(obs_bridge.ObsError, "wait limit"):
+            self.service._wait_record_state(client, 0, True)
+        self.assertEqual([0.3], observed_timeouts)
+        self.assertIs(original, client.settings)
 
     def assert_private_payload(self, result):
         serialized = json.dumps(result)

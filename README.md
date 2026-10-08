@@ -1,49 +1,65 @@
 # OBS Director MCP
 
-**Direct a live production with explicit controls and reusable cues.**
+**Control OBS Studio from an MCP client. Use cues for repeatable changes.**
 
-OBS Director connects an MCP client to local OBS Studio. Use individual tools to
-inspect or control a production, or send a bounded cue that coordinates several
-changes. The model chooses the cue; local code validates and executes its steps.
+OBS Director connects an MCP client to OBS Studio on the same computer.
+The client can send individual commands or a cue with several steps.
+Local code validates the cue, controls the step sequence, and records the results.
 
-This is an original MIT-licensed project in early development. The repository
-and package name are provisional; nothing has been published to a registry yet.
+This original project uses the [MIT license](LICENSE). This version is an alpha.
+The public repository is
+[rustybladerunner/obs-director-mcp](https://github.com/rustybladerunner/obs-director-mcp).
+Download release files from [GitHub Releases](https://github.com/rustybladerunner/obs-director-mcp/releases).
+Package-registry publication is not part of this alpha.
 
 ## What it does
 
-| Surface | Capability |
+| Area | Functions |
 | --- | --- |
-| Scenes | Inspect, create, select program or preview scenes |
-| Sources | Add inputs, update settings, show/hide, position, crop and scale |
-| Audio | Mute and set volume |
-| Filters | Inspect, enable and update existing filters |
-| Media | Play, pause, restart, stop and seek |
-| Outputs | Explicit streaming, replay-buffer and virtual-camera controls |
-| Capture | Session-owned recordings, local frame-health samples, finalized-file hashes |
-| Director cues | Validate complete sequences, preview, execute bounded timing, report partial failures |
+| Scenes | Read scene names. Create scenes. Select the program scene or the preview scene. |
+| Sources | Add inputs. Change settings, visibility, position, crop, and scale. |
+| Audio | Set the mute state and volume. |
+| Filters | Read filter names. Enable filters. Change settings of existing filters. |
+| Media | Play, pause, stop, start again, and seek. Next/previous commands have limited result verification. |
+| Outputs | Control the stream, replay buffer, and virtual camera through a separate tool. |
+| Capture | Record a session. Save local frame measurements and hashes of completed files. |
+| Director cues | Validate all steps before execution. Record completed, failed, and skipped steps. |
+| Events | Select a locally registered cue from a production event. Reject duplicate execution within the current process. |
 
-OBS production changes default to a preview. Changing an active production also requires
-`allow_live=true`. Output lifecycle operations require the local
-`OBS_MCP_ALLOW_OUTPUT_CONTROL=1` setting. The server never starts a stream on
-startup or as a cue step.
+Tools that change OBS use a dry run by default. A dry run returns a plan without changes to OBS.
+It is different from the OBS preview scene. The [glossary](docs/TERMINOLOGY.md) defines both terms.
+
+If recording or streaming is active, set `allow_live=true` for production changes.
+To execute a change, also set `dry_run=false`.
+Output start/stop commands need `OBS_MCP_ALLOW_OUTPUT_CONTROL=1` in the local environment.
+The server does not start a stream at startup. Cues cannot start a stream.
 
 ## Quick start
 
-Requires Python 3.11+ and OBS with WebSocket v5; session capture requires the
-recording-directory requests introduced in WebSocket 5.3. Enable OBS's
-**Tools → WebSocket Server Settings**, keeping authentication enabled.
+Python 3.11 or later and OBS WebSocket v5 are necessary.
+Session recording also uses the recording-directory requests from WebSocket 5.3.
 
-From a source checkout:
+1. Open **Tools → WebSocket Server Settings** in OBS.
+2. Enable the WebSocket server.
+3. Keep authentication enabled.
+4. Install the package from a source checkout:
 
-```sh
-python -m pip install -e .
-python run_server.py
-```
+   ```sh
+   python -m pip install -e .
+   ```
 
-Or use the installed `obs-director-mcp` command. Both run MCP over stdio, not an
-HTTP server. Standard output is reserved for MCP messages.
+5. Start the MCP server:
 
-Example MCP client configuration; replace the interpreter and checkout paths:
+   ```sh
+   python run_server.py
+   ```
+
+You can also use the installed `obs-director-mcp` command.
+Both commands use MCP over standard input and output (`stdio`). They do not start an HTTP server.
+Standard output contains only MCP messages.
+
+To let an MCP client start the server, use its server configuration.
+Replace the interpreter and checkout paths in this example:
 
 ```json
 {
@@ -56,46 +72,110 @@ Example MCP client configuration; replace the interpreter and checkout paths:
 }
 ```
 
-Runtime credentials come from `OBS_MCP_PASSWORD` or OBS's local WebSocket config.
-They are never copied into a release artifact. Connections are loopback-only.
-See [security and operating boundaries](docs/SECURITY.md).
+The server reads the password from `OBS_MCP_PASSWORD` or the local OBS WebSocket configuration.
+The release files must not contain these credentials. The server connects only through the loopback address.
+
+| Environment variable | Function |
+| --- | --- |
+| `OBS_MCP_PORT` | Override the OBS WebSocket port. The default is the OBS configuration value, or 4455. |
+| `OBS_MCP_PASSWORD` | Supply the OBS WebSocket password. |
+| `OBS_MCP_CONFIG` | Select a local OBS WebSocket configuration file. |
+| `OBS_MCP_DATA_DIR` | Select the local directory for server state. |
+| `OBS_MCP_EVIDENCE_ROOT` | Select the local directory for capture evidence. |
+| `OBS_MCP_ALLOW_OUTPUT_CONTROL` | Set to `1` to permit output start/stop commands. |
+| `OBS_MCP_EVENT_ROUTES` | Select an absolute path to a local event-route JSON file. Without this setting, no event routes exist. |
+
+Refer to [Security and private data](docs/SECURITY.md) before live operation.
 
 ## Cues
 
-The [examples](examples/) contain reusable, data-only production cues. Adapt
-their scene/source names to your OBS collection, validate them, then preview
-with `obs_run_cue`. Execution requires `dry_run=false` and, when outputs are
-active, `allow_live=true`.
+The [examples](examples/) contain cues as data files. A cue has 1 to 20 steps.
+The total of its explicit waits must not exceed 15 seconds.
+Network delays and OBS processing can increase the total execution time.
 
-The complete cue is checked before its first action. There are no arbitrary
-commands, scripts or stream-start steps. If an action fails, the receipt names
-completed, failed and skipped steps. Earlier changes are not magically rolled
-back. Do not use a successful request as proof the audience saw correct content.
+1. Change the example scene and source names to match your OBS collection.
+2. If recording and streaming are inactive, use `obs_validate_cue` to validate the complete cue against the current OBS state.
+3. If recording or streaming is active, use `obs_run_cue` with `dry_run=true` and `allow_live=true` to validate the cue.
+4. Examine the plan before execution.
+5. If recording and streaming are inactive, call `obs_run_cue` with `dry_run=false` to execute the cue.
+6. If recording or streaming is active, call `obs_run_cue` with `dry_run=false` and `allow_live=true` to execute the cue.
+
+Both validation tools examine the complete cue. `obs_validate_cue` does not accept permission for live changes.
+
+The server validates every step before the first change. A cue cannot contain arbitrary commands, scripts, or stream-start steps.
+Cue changes to source settings contain text only, with a maximum of 4096 characters.
+Individual source tools have a different settings interface.
+
+If an OBS command or its result check fails, the server stops the cue.
+The result identifies completed, failed, and skipped steps. The server does not reverse earlier changes.
+A failed command can leave its change in effect. OBS control results do not prove correct picture or audio.
+
+OBS remains available to other controllers during a cue. Validation does not lock OBS against those controllers.
+
+For an OBS FFmpeg media source, put the visibility step before the restart step.
+The server waits for the source to be showing before it sends the restart command.
+
+## Production events
+
+An event selects a cue from a local route registry. Event payloads cannot select arbitrary actions, paths, or scenes.
+The optional route file uses schema `obs.event-routes.v1`. It can contain up to 16 routes and must not exceed 128 KiB.
+Each route contains a cue. An optional `text_step` selects a text-only source-settings step within that cue.
+
+The event schema is `obs.event.v1`. Event identifiers and event types contain 1 to 96 permitted identifier characters.
+`occurred_at` contains a UTC timestamp with a final `Z`. The timestamp does not schedule execution or prove freshness.
+The payload has three plain-text fields: `title` (80 characters), `summary` (240 characters), and `reference` (96 characters).
+These fields cannot contain control characters.
+
+1. Use `obs_preview_event` to read the cue plan for an event.
+2. Examine the plan and the current OBS state.
+3. To execute the event, call `obs_dispatch_event` with `dry_run=false`.
+
+If recording or streaming is active, both event calls also need `allow_live=true`.
+A preview does not consume an event identifier.
+The server keeps up to 1024 consumed event identifiers in process memory. It refuses new identifiers when this capacity is full.
+After successful validation, an execution attempt consumes its identifier even if execution fails or its result is uncertain.
+The server rejects different content with a previously consumed identifier.
+The server loses this record when it restarts. A producer needs its own persistent record to prevent execution after a restart.
+
+The [synthetic demo](docs/DEMO.md) explains local routes, event data, and the rehearsal command.
+OBS command results alone do not establish visual or audio acceptance for that demo.
 
 ## Useful directions
 
-- One cue brings in a replay, changes the layout and adjusts its audio.
-- A presentation cue emphasizes one source and hides secondary panels.
-- A local application triggers evidence cards or scene changes from real events.
-- A custom browser overlay can add animation, annotations and audience graphics.
+- A cue can show a replay, change the layout, and set the audio volume.
+- A presentation cue can enlarge one source and hide secondary panels.
+- A local application can use production events to select a cue.
+- A separate browser overlay can add animation, annotations, and audience graphics.
 
-Browser-overlay rendering, speech recognition and streaming-platform chat are
-separate integrations. This package provides production control; it does not
-infer what a chart means or provide a streaming account.
+Browser-overlay rendering, speech recognition, and streaming-platform chat are separate integrations.
+This package supplies production controls. It does not interpret chart content or supply a streaming account.
 
 ## Capture evidence
 
-Capture tools keep screenshots and recordings on the local machine. Returned
-data contains paths, hashes, timing and measurements, never screenshot pixels.
-Black/unchanged frames are diagnostic evidence, not a content-quality verdict.
-A stationary slide can legitimately produce unchanged frames.
+Capture tools keep screenshots and recordings on the local computer.
+Tool results contain paths, hashes, times, and measurements. They do not contain screenshot pixels.
+`obs_capture_health` writes local files when it takes its samples.
 
-Stopping a session recording requires the original live connection and its
-observed lifecycle. After restart or a lost lease, stop through OBS itself.
-OBS exposes no atomic recording-ID comparison for stop, so avoid simultaneous
-manual capture changes while the adapter owns a session.
+A near-black frame can indicate a capture problem. An unchanged frame can be a correct picture of a static slide.
+Frame measurements do not prove correct content, motion, or audio.
+A completed file and its hash do not prove those properties either.
+
+Session recording starts only when OBS is neither recording nor streaming.
+The adapter keeps the live connection and recording events for its own session.
+To stop that recording through the adapter, use the original process and connection.
+
+The adapter waits for recording events and matching output state, with a 10-second limit.
+If a start remains uncertain, it keeps the capture marked `may_be_recording`.
+It preserves the recording directory and refuses another recording in that evidence root.
+Examine OBS and the local capture manifest before recovery. The adapter does not clear this uncertainty automatically.
+
+If the process restarts or loses recording ownership, examine OBS and stop the recording in OBS itself.
+OBS cannot compare a recording identifier and stop that recording in one atomic operation.
+Do not make simultaneous manual recording changes while the adapter owns a session.
 
 ## Development and release checks
+
+Run these commands from the source checkout:
 
 ```sh
 python -m unittest discover -s tests -v
@@ -103,26 +183,34 @@ python tools/public_check.py
 python tools/smoke.py
 python tools/smoke.py --live
 python tools/build_release.py
+python tools/verify_dist.py
 ```
 
-The smoke test performs a real SDK subprocess handshake. Its default mode tests
-disconnected OBS; `--live` performs only status/capability reads. Fake-client
-tests cover mutations without touching a running production. Build output and
-local verification evidence are excluded from Git.
+The smoke test starts a real MCP SDK subprocess. Its default mode tests the result when OBS is disconnected.
+The `--live` mode reads only OBS status and capabilities.
+Tests with synthetic clients exercise changes without a live production.
+Git excludes local test evidence and generated packages.
 
-Before any release, review the actual export, run the public-content check and
-review dependency licenses. Passing a pattern scanner is useful evidence, not a
-guarantee that every sensitive detail has been recognized.
+To test an installed package, install the built wheel into a separate environment first.
+Then run `python tools/smoke.py --installed --python <consumer-interpreter>` with that environment's interpreter path.
+This mode starts the installed command outside the checkout and rejects an import from the checkout's source directory.
+The distribution check compares both archives with the source, metadata, expected file lists, and public-content rules.
+
+Before release, examine the exported files and dependency licenses.
+Run the public-content check against the release source.
+The scanner can miss private information. A passing result is not proof that every file is suitable for publication.
+
+The [documentation review](docs/STE-REVIEW.md) records the scope of the technical-English review and its remaining limits.
 
 ## Implementation provenance
 
-Written against the [official OBS WebSocket protocol](https://github.com/obsproject/obs-websocket/blob/master/docs/generated/protocol.md)
+The implementation uses the [official OBS WebSocket protocol](https://github.com/obsproject/obs-websocket/blob/master/docs/generated/protocol.md)
 and the [Python MCP SDK](https://github.com/modelcontextprotocol/python-sdk).
-An earlier in-house capture prototype supplied the transport and recording
-ownership design. Its source snapshot was recorded by content hash before
-generalization; this repository has no dependency on the original application.
+An earlier internal capture prototype supplied the transport and recording-ownership design.
+The development record identifies that prototype by its source hash.
+This repository has no dependency on the original application.
 
-[aaronckj/obs-studio-mcp](https://github.com/aaronckj/obs-studio-mcp) and
-[royshil/obs-mcp](https://github.com/royshil/obs-mcp) were reviewed for feature
-coverage. No source from either repository was copied. Dependencies retain
-their own licenses. This project's original source is [MIT licensed](LICENSE).
+The feature review included [aaronckj/obs-studio-mcp](https://github.com/aaronckj/obs-studio-mcp)
+and [royshil/obs-mcp](https://github.com/royshil/obs-mcp).
+This project contains no copied source from either repository.
+Dependencies keep their own licenses. The [MIT license](LICENSE) applies to the original source in this project.

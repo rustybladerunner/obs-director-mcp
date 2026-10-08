@@ -1,0 +1,11 @@
+{
+  "schema": "obs.event.v1",
+  "event_id": "synthetic-rehearsal-001",
+  "event_type": "evidence.ready",
+  "occurred_at": "2026-01-01T12:00:00Z",
+  "payload": {
+    "title": "Review window selected",
+    "summary": "Samples 40–52 are ready for a closer look. This is a synthetic fixture.",
+    "reference": "Synthetic study 07 / samples 40–52"
+  }
+}

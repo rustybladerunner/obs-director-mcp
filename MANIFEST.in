@@ -1,7 +1,9 @@
 include LICENSE README.md
+include requirements-ci.lock
+recursive-include .github *.yml
 include run_server.py
 recursive-include docs *.md
-recursive-include examples *.json
+recursive-include examples *.json *.html *.css *.js
 recursive-include tools *.py
 recursive-include tests *.py
 global-exclude *.pyc

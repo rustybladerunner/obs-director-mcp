@@ -1,0 +1,61 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", Arial, sans-serif;
+  background: #0c1116;
+  color: #e6e9e7;
+  --ink: #e6e9e7;
+  --muted: #87979f;
+  --teal: #85b2aa;
+  --amber: #c8a370;
+  --edge: #2a363e;
+}
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { background: #0c1116; }
+#stage {
+  position: absolute; left: 50%; top: 50%; width: 1280px; height: 720px;
+  transform: translate(-50%, -50%); transform-origin: center;
+  background: radial-gradient(ellipse at 20% 10%, #1a2830 0%, #111b22 35%, #0c1116 78%);
+  overflow: hidden;
+}
+.masthead { position: absolute; left: 48px; top: 28px; width: 1184px; height: 132px; }
+.identity { display: flex; align-items: center; gap: 12px; font: 11px "Consolas", monospace; letter-spacing: 1.6px; color: #9aabb1; }
+.identity-mark { width: 12px; height: 12px; border: 2px solid var(--amber); transform: rotate(45deg); }
+.divider { width: 1px; height: 12px; margin: 0 4px; background: #4a565d; }
+.fixture-badge { position: absolute; right: 0; top: -4px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #4b4337; border-radius: 4px; background: #211f1a; color: #c8b591; font: 11px "Consolas", monospace; letter-spacing: 1.2px; }
+.fixture-badge span { width: 5px; height: 5px; border-radius: 50%; background: var(--amber); }
+h1 { margin: 20px 0 6px; font-size: 44px; line-height: 1.12; font-weight: 600; letter-spacing: -1.8px; }
+h1 > span { color: var(--amber); }
+.subtitle { margin: 0; font-size: 16px; letter-spacing: .1px; color: #a3b0b6; }
+.edition { position: absolute; right: 0; top: 52px; display: flex; align-items: center; gap: 16px; }
+.edition strong { color: #a5b9bb; font: 46px "Consolas", monospace; letter-spacing: -3px; }
+.edition span { color: #7e9099; font: 10px/1.8 "Consolas", monospace; letter-spacing: 1.5px; border-left: 1px solid #39474e; padding-left: 16px; }
+.chart-panel { position: absolute; top: 176px; left: 48px; width: 1184px; height: 324px; background: #111d25; border: 1px solid #2b3a42; border-radius: 8px; box-shadow: 0 12px 32px #00000024; overflow: hidden; }
+.panel-heading { position: absolute; left: 24px; top: 16px; right: 24px; display: flex; justify-content: space-between; align-items: center; }
+.eyebrow { font: 10px "Consolas", monospace; color: #81969e; letter-spacing: 1.5px; }
+h2 { font-size: 18px; font-weight: 500; margin: 4px 0 0; letter-spacing: -.2px; }
+.chart-key { display: flex; align-items: center; gap: 8px; color: #91a4ab; font: 10px "Consolas", monospace; letter-spacing: .7px; }
+.trace-key, .window-key { width: 20px; height: 2px; background: var(--teal); }
+.window-key { width: 10px; height: 10px; margin-left: 16px; background: #c8a37020; border: 1px solid #c8a37070; }
+#trace-chart { position: absolute; left: 0; top: 56px; width: 1184px; height: 240px; }
+.grid-lines { fill: none; stroke: #8ca3ad; stroke-opacity: .1; stroke-width: 1; }
+.trace-line { stroke: var(--teal); stroke-width: 2.8; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.window-boundary { fill: none; stroke: var(--amber); stroke-opacity: .4; stroke-dasharray: 3 5; }
+.window-label { fill: #c3a478; font: 10px "Consolas", monospace; letter-spacing: 1px; }
+.axis-labels { fill: #6f858f; font: 11px "Consolas", monospace; }
+.scan-line { fill: none; stroke: #d6e6dd; stroke-width: 1; stroke-opacity: .3; stroke-dasharray: 2 5; }
+.scan-halo { fill: #bfd7cc14; stroke: #bed6cb40; }
+.scan-dot { fill: #e1eee6; }
+.chart-caption { position: absolute; left: 24px; right: 24px; bottom: 12px; display: flex; justify-content: space-between; color: #718893; font: 9px "Consolas", monospace; letter-spacing: 1px; }
+.evidence-panel, .replay-panel { position: absolute; top: 520px; height: 160px; background: #111b22; border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; }
+.evidence-panel { left: 48px; width: 688px; border-top-color: #6f6049; }
+.replay-panel { left: 760px; width: 472px; }
+.well-label { position: absolute; left: 16px; top: 12px; color: #8ea0a8; font: 10px "Consolas", monospace; letter-spacing: 1.4px; }
+.well-label > span { color: var(--amber); margin-right: 12px; }
+.well-corner { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; border-right: 1px solid #55636a; border-bottom: 1px solid #55636a; }
+.replay-description { position: absolute; left: 24px; top: 52px; display: flex; align-items: center; gap: 20px; color: #b1bfc4; font-size: 19px; }
+.replay-description small { display: block; margin-top: 8px; color: #657b86; font: 9px "Consolas", monospace; letter-spacing: 1px; }
+.replay-icon { font: 40px Arial, sans-serif; color: #819a9c; }
+footer { position: absolute; left: 48px; right: 48px; bottom: 16px; display: flex; justify-content: space-between; color: #697e87; font: 8px "Consolas", monospace; letter-spacing: 1.2px; }
+footer span:last-child { color: #a39276; }
+@media (prefers-reduced-motion: reduce) { .scan-line, .scan-halo { opacity: .5; } }

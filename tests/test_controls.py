@@ -6,8 +6,8 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from obs_director.controls import ProductionService
-from obs_director.transport import ObsError
+from obs_director.controls import MEDIA_READBACK_TIMEOUT, ProductionService
+from obs_director.transport import ObsError, ObsSettings
 
 
 class FakeState:
@@ -32,6 +32,7 @@ class FakeState:
         self.filter_settings = {"contrast": 0.0}
         self.cursor = 0
         self.media_state = "OBS_MEDIA_STATE_STOPPED"
+        self.showing = True
         self.missing = set()
         self.noop = set()
         self.capabilities = {"GetRecordStatus", "GetStreamStatus", "GetCurrentProgramScene", "GetCurrentPreviewScene",
@@ -40,7 +41,7 @@ class FakeState:
             "SetCurrentPreviewScene", "GetInputSettings", "SetInputSettings", "GetSceneItemEnabled",
             "SetSceneItemEnabled", "GetSceneItemTransform", "SetSceneItemTransform", "GetInputMute",
             "SetInputMute", "GetInputVolume", "SetInputVolume", "GetSourceFilter", "SetSourceFilterSettings",
-            "SetSourceFilterEnabled", "GetMediaInputStatus", "SetMediaInputCursor", "TriggerMediaInputAction",
+            "SetSourceFilterEnabled", "GetMediaInputStatus", "GetSourceActive", "SetMediaInputCursor", "TriggerMediaInputAction",
             "GetVirtualCamStatus", "StartVirtualCam", "StopVirtualCam", "StartStream", "StopStream",
             "GetReplayBufferStatus", "StartReplayBuffer", "StopReplayBuffer", "SaveReplayBuffer", "GetLastReplayBufferReplay"}
 
@@ -54,6 +55,7 @@ class FakeState:
 class FakeClient:
     def __init__(self, state):
         self.state = state
+        self.settings = ObsSettings()
 
     def __enter__(self):
         return self
@@ -139,6 +141,8 @@ class FakeClient:
             state.filter_enabled = data["filterEnabled"]
         elif name == "GetMediaInputStatus":
             return {"mediaState": state.media_state, "mediaCursor": state.cursor, "mediaDuration": 100000}
+        elif name == "GetSourceActive":
+            return {"videoShowing": state.showing, "videoActive": state.showing}
         elif name == "SetMediaInputCursor":
             state.cursor = data["mediaCursor"]
         elif name == "TriggerMediaInputAction":
@@ -162,6 +166,12 @@ class ControlsTests(unittest.TestCase):
     def setUp(self):
         self.state = FakeState()
         self.service = ProductionService(self.state.factory)
+        self.clock = 0.0
+        self.enterContext(patch("obs_director.controls.time.monotonic", side_effect=lambda: self.clock))
+        self.enterContext(patch("obs_director.controls.time.sleep", side_effect=self.advance_clock))
+
+    def advance_clock(self, seconds):
+        self.clock += seconds
 
     def test_inventory_omits_settings_and_previews_do_not_mutate(self):
         values = [self.service.status(), self.service.capabilities(), self.service.scenes(),
@@ -259,6 +269,318 @@ class ControlsTests(unittest.TestCase):
         self.state.noop.add("TriggerMediaInputAction")
         ambiguous = self.service.media_action("Movie", "restart", False)
         self.assertFalse(ambiguous["verified"])
+
+    def test_queued_media_actions_wait_for_the_requested_state(self):
+        class QueuedMedia(FakeClient):
+            pending = None
+            readbacks = 0
+
+            def request(self, name, data=None):
+                if name == "TriggerMediaInputAction":
+                    self.state.calls.append((name, dict(data)))
+                    self.pending = dict(data)
+                    return {}
+                if name == "GetMediaInputStatus" and self.pending is not None:
+                    self.readbacks += 1
+                    if self.readbacks == 3:
+                        action = self.pending["mediaAction"].rsplit("_", 1)[1]
+                        self.state.media_state = "OBS_MEDIA_STATE_" + {
+                            "STOP": "STOPPED", "PLAY": "PLAYING", "PAUSE": "PAUSED", "RESTART": "PLAYING"}[action]
+                        self.state.cursor = None if action == "STOP" else 133 if action == "RESTART" else 50000
+                return super().request(name, data)
+
+        for action in ("stop", "play", "pause", "restart"):
+            with self.subTest(action=action):
+                self.state = FakeState()
+                self.state.media_state = "OBS_MEDIA_STATE_STOPPED" if action in ("play", "restart") else "OBS_MEDIA_STATE_PLAYING"
+                self.state.cursor = None if action in ("play", "restart") else 50000
+                client = QueuedMedia(self.state)
+                original_settings = client.settings
+                before = self.clock
+                result = ProductionService(lambda: client).media_action("Movie", action, False)
+                self.assertTrue(result["applied"])
+                self.assertTrue(result["verified"], result)
+                self.assertFalse(result["uncertain"])
+                self.assertEqual(3, client.readbacks)
+                self.assertAlmostEqual(0.1, self.clock - before)
+                self.assertEqual(["TriggerMediaInputAction"], self.state.mutations())
+                self.assertIs(original_settings, client.settings)
+
+    def test_stop_noop_never_accepts_other_media_states(self):
+        for media_state in ("PLAYING", "PAUSED", "ENDED", "NONE", "ERROR", None):
+            with self.subTest(media_state=media_state):
+                self.state = FakeState()
+                self.state.media_state = "OBS_MEDIA_STATE_" + media_state if media_state else None
+                self.state.noop.add("TriggerMediaInputAction")
+                client = FakeClient(self.state)
+                original_settings = client.settings
+                before = self.clock
+                result = ProductionService(lambda: client).media_action("Movie", "stop", False)
+                self.assertTrue(result["applied"])
+                self.assertFalse(result["verified"])
+                self.assertTrue(result["uncertain"])
+                self.assertAlmostEqual(MEDIA_READBACK_TIMEOUT, self.clock - before)
+                self.assertEqual(["TriggerMediaInputAction"], self.state.mutations())
+                self.assertIs(original_settings, client.settings)
+
+    def test_restart_null_cursor_requires_stopped_to_playing_near_start(self):
+        verify = ProductionService._media_cursor_verified
+        stopped = {"mediaState": "OBS_MEDIA_STATE_STOPPED", "mediaCursor": None}
+        self.assertTrue(verify(stopped, {"mediaState": "OBS_MEDIA_STATE_PLAYING", "mediaCursor": 133}, 0, 100, True))
+        for state, cursor in (("STOPPED", None), ("PLAYING", None), ("PLAYING", 5000), ("PLAYING", True), ("PLAYING", float("nan"))):
+            self.assertFalse(verify(stopped, {"mediaState": "OBS_MEDIA_STATE_" + state, "mediaCursor": cursor}, 0, 100, True))
+        for before in ({"mediaState": "OBS_MEDIA_STATE_STOPPED"},
+                       {"mediaState": "OBS_MEDIA_STATE_PLAYING", "mediaCursor": None},
+                       {"mediaState": "OBS_MEDIA_STATE_NONE", "mediaCursor": None}):
+            self.assertFalse(verify(before, {"mediaState": "OBS_MEDIA_STATE_PLAYING", "mediaCursor": 0}, 0, 100, True))
+
+    def test_hidden_ffmpeg_restart_preflights_but_never_sends_the_restart(self):
+        self.state.showing = False
+        preview = self.service.media_action("Movie", "restart")
+        self.assertIn("GetSourceActive", preview["required_requests"])
+        self.assertFalse(any(name == "GetSourceActive" for name, _ in self.state.calls),
+                         "Whole-cue preflight must permit a later show step")
+        result = self.service.media_action("Movie", "restart", False)
+        self.assertFalse(result["applied"])
+        self.assertFalse(result["verified"])
+        self.assertFalse(result["uncertain"], "The restart was certainly not sent")
+        self.assertIn("restart was not sent", result["verification"])
+        self.assertAlmostEqual(MEDIA_READBACK_TIMEOUT, self.clock)
+        self.assertEqual([], self.state.mutations())
+
+    def test_delayed_show_is_observed_before_the_single_restart_write(self):
+        class DelayedShow(FakeClient):
+            reads = 0
+
+            def request(self, name, data=None):
+                if name == "GetSourceActive":
+                    self.reads += 1
+                    self.state.showing = self.reads >= 3
+                if name == "TriggerMediaInputAction":
+                    self.assertion_showing = self.state.showing
+                return super().request(name, data)
+
+        self.state.showing = False
+        self.state.cursor = None
+        client = DelayedShow(self.state)
+        settings = client.settings
+        result = ProductionService(lambda: client).media_action("Movie", "restart", False)
+        self.assertTrue(result["applied"])
+        self.assertTrue(result["verified"])
+        self.assertTrue(client.assertion_showing)
+        self.assertEqual(client.reads, 4, "Showing must also be rechecked after the media snapshot")
+        self.assertAlmostEqual(self.clock, 0.1)
+        self.assertEqual(["TriggerMediaInputAction"], self.state.mutations())
+        self.assertIs(client.settings, settings)
+
+    def test_restart_requires_showing_capability_before_any_mutation(self):
+        self.state.missing.add("GetSourceActive")
+        for dry_run in (True, False):
+            with self.subTest(dry_run=dry_run), self.assertRaises(ObsError):
+                self.service.media_action("Movie", "restart", dry_run)
+        self.assertEqual([], self.state.mutations())
+
+    def test_restart_rejects_unknown_visibility_and_read_errors_without_sending(self):
+        for value in (None, 1, "true"):
+            with self.subTest(value=value):
+                self.state.showing = value
+                result = self.service.media_action("Movie", "restart", False)
+                self.assertFalse(result["applied"])
+                self.assertEqual([], self.state.mutations())
+
+        class ReadError(FakeClient):
+            def request(self, name, data=None):
+                if name == "GetSourceActive":
+                    raise ObsError("not-a-real-secret")
+                return super().request(name, data)
+
+        client = ReadError(self.state)
+        settings = client.settings
+        result = ProductionService(lambda: client).media_action("Movie", "restart", False)
+        self.assertFalse(result["applied"])
+        self.assertNotIn("not-a-real-secret", json.dumps(result))
+        self.assertIs(client.settings, settings)
+        self.assertEqual([], self.state.mutations())
+
+    def test_visibility_wait_late_true_reply_cannot_authorize_restart(self):
+        clock_owner = self
+
+        class LateShowing(FakeClient):
+            def request(self, name, data=None):
+                if name == "GetSourceActive":
+                    self.observed_timeout = self.settings.timeout
+                    clock_owner.advance_clock(MEDIA_READBACK_TIMEOUT)
+                return super().request(name, data)
+
+        client = LateShowing(self.state)
+        settings = client.settings
+        result = ProductionService(lambda: client).media_action("Movie", "restart", False)
+        self.assertFalse(result["applied"])
+        self.assertEqual(client.observed_timeout, MEDIA_READBACK_TIMEOUT)
+        self.assertEqual([], self.state.mutations())
+        self.assertIs(client.settings, settings)
+
+    def test_show_transition_is_not_attributed_to_a_noop_restart(self):
+        class AutoPlayOnShow(FakeClient):
+            def request(self, name, data=None):
+                if name == "GetSourceActive":
+                    self.state.showing = True
+                    self.state.media_state = "OBS_MEDIA_STATE_PLAYING"
+                    self.state.cursor = 0
+                return super().request(name, data)
+
+        self.state.showing = False
+        self.state.cursor = None
+        self.state.noop.add("TriggerMediaInputAction")
+        result = ProductionService(lambda: AutoPlayOnShow(self.state)).media_action("Movie", "restart", False)
+        self.assertTrue(result["applied"])
+        self.assertFalse(result["verified"])
+        self.assertTrue(result["uncertain"])
+        self.assertEqual(["TriggerMediaInputAction"], self.state.mutations())
+
+    def test_hiding_during_refreshed_snapshot_blocks_restart(self):
+        class HiddenAgain(FakeClient):
+            showing_read = False
+
+            def request(self, name, data=None):
+                result = super().request(name, data)
+                if name == "GetSourceActive":
+                    self.showing_read = True
+                if name == "GetMediaInputStatus" and self.showing_read:
+                    self.state.showing = False
+                return result
+
+        result = ProductionService(lambda: HiddenAgain(self.state)).media_action("Movie", "restart", False)
+        self.assertFalse(result["applied"])
+        self.assertEqual([], self.state.mutations())
+
+    def test_output_start_during_show_wait_requires_live_opt_in_before_restart(self):
+        for output in ("recording", "streaming"):
+            for active in (True, None):
+                with self.subTest(output=output, active=active):
+                    self.state = FakeState()
+                    self.state.showing = False
+
+                    class OutputChanges(FakeClient):
+                        reads = 0
+
+                        def request(self, name, data=None):
+                            if name == "GetSourceActive":
+                                self.reads += 1
+                                if self.reads >= 2:
+                                    self.state.showing = True
+                                    setattr(self.state, output, active)
+                            return super().request(name, data)
+
+                    client = OutputChanges(self.state)
+                    settings = client.settings
+                    result = ProductionService(lambda: client).media_action("Movie", "restart", False)
+                    self.assertFalse(result["applied"])
+                    self.assertEqual([], self.state.mutations())
+                    self.assertIs(client.settings, settings)
+                    if active is True:
+                        allowed = ProductionService(lambda: client).media_action("Movie", "restart", False, True)
+                        self.assertTrue(allowed["verified"])
+                        self.assertEqual(["TriggerMediaInputAction"], self.state.mutations())
+
+    def test_non_ffmpeg_restart_does_not_require_source_showing(self):
+        self.state.inputs["Movie"] = "vlc_source"
+        self.state.missing.add("GetSourceActive")
+        self.state.showing = False
+        result = self.service.media_action("Movie", "restart", False)
+        self.assertTrue(result["verified"])
+        self.assertFalse(any(name == "GetSourceActive" for name, _ in self.state.calls))
+
+    def test_playing_restart_noop_cannot_be_proved_by_natural_loop_wrap(self):
+        clock_owner = self
+
+        class LoopingMedia(FakeClient):
+            def request(self, name, data=None):
+                if name == "GetMediaInputStatus" and self.state.mutations():
+                    self.state.cursor = (9900 + round(clock_owner.clock * 1000)) % 10000
+                result = super().request(name, data)
+                if name == "GetMediaInputStatus":
+                    result["mediaDuration"] = 10000
+                return result
+
+        self.state.cursor = 9900
+        self.state.media_state = "OBS_MEDIA_STATE_PLAYING"
+        self.state.noop.add("TriggerMediaInputAction")
+        result = ProductionService(lambda: LoopingMedia(self.state)).media_action("Movie", "restart", False)
+        self.assertTrue(result["applied"])
+        self.assertFalse(result["verified"])
+        self.assertTrue(result["uncertain"])
+        self.assertLess(self.state.cursor, 9900)
+        self.assertAlmostEqual(MEDIA_READBACK_TIMEOUT, self.clock)
+        self.assertEqual(["TriggerMediaInputAction"], self.state.mutations())
+
+    def test_media_readback_caps_each_rpc_and_rejects_a_late_matching_reply(self):
+        clock_owner = self
+
+        class LateReply(FakeClient):
+            readbacks = 0
+            budgets = []
+
+            def request(self, name, data=None):
+                if name == "GetMediaInputStatus" and self.state.mutations():
+                    self.readbacks += 1
+                    self.budgets.append(self.settings.timeout)
+                    if self.readbacks == 1:
+                        clock_owner.advance_clock(MEDIA_READBACK_TIMEOUT - 0.1)
+                        return {"mediaState": "OBS_MEDIA_STATE_PLAYING", "mediaCursor": 1000}
+                    clock_owner.advance_clock(0.1)
+                    return {"mediaState": "OBS_MEDIA_STATE_STOPPED", "mediaCursor": None}
+                return super().request(name, data)
+
+        client = LateReply(self.state)
+        original_settings = client.settings
+        result = ProductionService(lambda: client).media_action("Movie", "stop", False)
+        self.assertTrue(result["applied"])
+        self.assertFalse(result["verified"])
+        self.assertTrue(result["uncertain"])
+        self.assertEqual(2, client.readbacks)
+        self.assertEqual(MEDIA_READBACK_TIMEOUT, client.budgets[0])
+        self.assertAlmostEqual(0.05, client.budgets[1])
+        self.assertIs(original_settings, client.settings)
+
+    def test_media_readback_failure_preserves_ack_and_restores_rpc_budget(self):
+        class ReadFailure(FakeClient):
+            readbacks = 0
+
+            def request(self, name, data=None):
+                if name == "GetMediaInputStatus" and self.state.mutations():
+                    self.readbacks += 1
+                    raise ObsError("not-a-real-secret")
+                return super().request(name, data)
+
+        client = ReadFailure(self.state)
+        original_settings = client.settings
+        result = ProductionService(lambda: client).media_action("Movie", "stop", False)
+        self.assertTrue(result["applied"])
+        self.assertFalse(result["verified"])
+        self.assertTrue(result["uncertain"])
+        self.assertEqual(1, client.readbacks)
+        self.assertEqual(["TriggerMediaInputAction"], self.state.mutations())
+        self.assertIs(original_settings, client.settings)
+        self.assertNotIn("not-a-real-secret", json.dumps(result))
+
+    def test_media_lost_ack_never_retries_write_or_adopts_readback_success(self):
+        class LostAck(FakeClient):
+            def request(self, name, data=None):
+                result = super().request(name, data)
+                if name == "TriggerMediaInputAction":
+                    raise ObsError("not-a-real-secret")
+                return result
+
+        self.state.media_state = "OBS_MEDIA_STATE_PLAYING"
+        result = ProductionService(lambda: LostAck(self.state)).media_action("Movie", "stop", False)
+        self.assertEqual("OBS_MEDIA_STATE_STOPPED", self.state.media_state)
+        self.assertIsNone(result["applied"])
+        self.assertFalse(result["verified"])
+        self.assertTrue(result["uncertain"])
+        self.assertEqual("TriggerMediaInputAction", self.state.calls[-1][0])
+        self.assertEqual(["TriggerMediaInputAction"], self.state.mutations())
+        self.assertNotIn("not-a-real-secret", json.dumps(result))
 
     def test_paused_seek_noop_fails_even_inside_frame_tolerance(self):
         self.state.cursor = 10000

@@ -1,6 +1,7 @@
 # Derived from in-house prototype SHA256 04933b2733106d6f093aba821c48626e3bd21b90f8e1dae24eb869811aaeb861.
 from __future__ import annotations
 from contextlib import contextmanager
+from dataclasses import replace
 import base64
 import hashlib
 import io
@@ -15,6 +16,9 @@ from typing import Any, Callable, Iterator
 import uuid
 from PIL import Image, ImageStat
 from .transport import ObsClient, ObsError, utc_now, _text, _local_path, data_directory
+
+RECORD_TRANSITION_TIMEOUT = 10.0
+RECORD_POLL_INTERVAL = 0.1
 
 class CaptureService:
     """Small recording workflow. Metadata persists; stop authority does not.
@@ -112,23 +116,95 @@ class CaptureService:
         return scenes
 
     @staticmethod
-    def _restore_directory(client: ObsClient, manifest: dict[str, Any]) -> None:
+    def _restore_directory(client: ObsClient, manifest: dict[str, Any],
+                           stop_event_offset: int | None = None) -> None:
         """Restore our temporary setting only when no recording uses it now."""
+        # StartRecord acknowledgement can precede output activation. An inactive
+        # status alone never proves that a requested start is cancelled/finished.
+        if manifest.get("start_requested_at") and not manifest.get("stop_confirmed_at"):
+            manifest["record_directory_restored"] = False
+            manifest["restore_note"] = "Recording start/stop is unresolved; keep the session directory and inspect OBS"
+            return
         try:
             if client.request("GetRecordStatus").get("outputActive") is not False:
                 manifest["record_directory_restored"] = False
                 return
+            if stop_event_offset is not None:
+                CaptureService._check_stopped_continuity(client, stop_event_offset)
             manifest["may_be_recording"] = False
             current = _local_path(client.request("GetRecordDirectory")["recordDirectory"])
+            if stop_event_offset is not None:
+                CaptureService._check_stopped_continuity(client, stop_event_offset)
             if current == _local_path(manifest["record_directory"]):
                 client.request("SetRecordDirectory", {"recordDirectory": manifest["previous_record_directory"]})
                 confirmed = _local_path(client.request("GetRecordDirectory")["recordDirectory"])
+                if stop_event_offset is not None:
+                    CaptureService._check_stopped_continuity(client, stop_event_offset)
                 manifest["record_directory_restored"] = confirmed == _local_path(manifest["previous_record_directory"])
             else:
                 manifest["record_directory_restored"] = False
         except Exception:
             manifest["record_directory_restored"] = False
             manifest["restore_note"] = "Could not confirm safe recording-directory restoration; inspect OBS"
+
+    def _require_resolved_captures(self) -> None:
+        """A persisted uncertain start cannot be cleared by a transient idle read."""
+        for path in self.evidence_root.glob("*/manifest.json"):
+            manifest = self._read_manifest(path.parent.name)
+            if manifest.get("may_be_recording") is not False and manifest.get("state") != "completed":
+                raise ObsError("An unresolved capture blocks new recording in this evidence root; inspect OBS and resolve its saved manifest explicitly")
+
+    @staticmethod
+    def _record_states(client: ObsClient, event_offset: int) -> list[str]:
+        if client.closed:
+            raise ObsError("OBS connection was lost; recording ownership is unproven")
+        allowed = {"OBS_WEBSOCKET_OUTPUT_" + name for name in (
+            "STARTING", "STARTED", "STOPPING", "STOPPED", "PAUSED", "RESUMED")}
+        states = []
+        for event in client.record_events[event_offset:]:
+            if (not isinstance(event, dict) or not isinstance(event.get("outputState"), str)
+                    or event["outputState"] not in allowed
+                    or type(event.get("outputActive")) is not bool):
+                raise ObsError("OBS returned an unknown recording event; ownership is unproven")
+            expected_active = event["outputState"] in {
+                "OBS_WEBSOCKET_OUTPUT_STARTED", "OBS_WEBSOCKET_OUTPUT_RESUMED"}
+            if event["outputActive"] is not expected_active:
+                raise ObsError("OBS returned an inconsistent recording event; ownership is unproven")
+            states.append(event["outputState"])
+        return states
+
+    @staticmethod
+    def _check_stopped_continuity(client: ObsClient, event_offset: int) -> None:
+        if any(state.endswith(("_STARTING", "_STARTED"))
+               for state in CaptureService._record_states(client, event_offset)):
+            raise ObsError("An intervening start invalidated recording finalization")
+
+    @classmethod
+    def _wait_record_state(cls, client: ObsClient, event_offset: int, active: bool) -> None:
+        """Poll one bounded connection for both transition event and matching status."""
+        deadline = time.monotonic() + RECORD_TRANSITION_TIMEOUT
+        original_settings = client.settings
+        try:
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise ObsError("OBS recording transition remained unconfirmed within the wait limit")
+                client.settings = replace(original_settings, timeout=min(original_settings.timeout, remaining))
+                status = client.request("GetRecordStatus").get("outputActive")
+                if time.monotonic() >= deadline:
+                    raise ObsError("OBS recording transition remained unconfirmed within the wait limit")
+                if type(status) is not bool:
+                    raise ObsError("OBS returned an unknown recording state; transition is unconfirmed")
+                if active:
+                    cls._check_continuity(client, event_offset)
+                else:
+                    cls._check_stopped_continuity(client, event_offset)
+                target = "OBS_WEBSOCKET_OUTPUT_STARTED" if active else "OBS_WEBSOCKET_OUTPUT_STOPPED"
+                if status is active and target in cls._record_states(client, event_offset):
+                    return
+                time.sleep(min(RECORD_POLL_INTERVAL, max(0, deadline - time.monotonic())))
+        finally:
+            client.settings = original_settings
 
     def status(self) -> dict[str, Any]:
         """Read OBS version, current scene, recording state and local recording directory."""
@@ -237,10 +313,12 @@ class CaptureService:
         with self._lock:
             client = self.client_factory().__enter__()
             retained = False
+            configuration_event_offset = len(client.record_events)
             try:
                 client.require_capabilities(["GetVersion", "GetRecordStatus", "GetStreamStatus",
                     "GetSceneList", "GetRecordDirectory", "SetRecordDirectory",
                     "SetCurrentProgramScene", "GetCurrentProgramScene", "StartRecord", "StopRecord"])
+                self._require_resolved_captures()
                 self._idle(client)
                 scenes = self._scene(client, scene_name)
                 directory = _local_path(client.request("GetRecordDirectory")["recordDirectory"])
@@ -253,6 +331,7 @@ class CaptureService:
                 if os.environ.get("OBS_MCP_ALLOW_OUTPUT_CONTROL") != "1":
                     raise ObsError("Recording control requires OBS_MCP_ALLOW_OUTPUT_CONTROL=1")
                 with self._file_lock():
+                    self._require_resolved_captures()
                     self._idle(client)
                     session_id = uuid.uuid4().hex
                     session_dir = self._manifest_path(session_id).parent
@@ -264,6 +343,7 @@ class CaptureService:
                         "may_be_recording": False, "capture_verified": False}
                     self._write_manifest(manifest, initial=True)
                     try:
+                        self._check_stopped_continuity(client, configuration_event_offset)
                         client.request("SetRecordDirectory", {"recordDirectory": str(session_dir)})
                         if _local_path(client.request("GetRecordDirectory")["recordDirectory"]) != session_dir:
                             raise ObsError("OBS did not confirm the unique recording directory")
@@ -273,12 +353,15 @@ class CaptureService:
                         if observed != scene_name:
                             raise ObsError("OBS did not confirm the requested capture scene")
                         self._idle(client)
+                        self._check_stopped_continuity(client, configuration_event_offset)
                         event_offset = len(client.record_events)
-                        manifest["may_be_recording"] = True
+                        manifest.update(may_be_recording=True, start_requested_at=utc_now())
                         self._write_manifest(manifest)
                         client.request("StartRecord")
-                        if client.request("GetRecordStatus").get("outputActive") is not True:
-                            raise ObsError("OBS did not confirm recording started")
+                        self._wait_record_state(client, event_offset, True)
+                        if _local_path(client.request("GetRecordDirectory")["recordDirectory"]) != session_dir:
+                            raise ObsError("Recording directory changed during startup; ownership is unproven")
+                        self._check_continuity(client, event_offset)
                         manifest.update(state="recording", started_at=utc_now())
                         self._write_manifest(manifest)
                         self._owned[session_id] = (client, event_offset)
@@ -288,7 +371,7 @@ class CaptureService:
                     except Exception as exc:
                         manifest.update(state="failed", error=str(exc) if isinstance(exc, ObsError) else "Local capture operation failed",
                             ownership="unproven; inspect OBS before further actions")
-                        self._restore_directory(client, manifest)
+                        self._restore_directory(client, manifest, configuration_event_offset)
                         self._write_manifest(manifest)
                         raise ObsError(f"Capture start failed; inspect session {session_id} and OBS before retrying") from None
             finally:
@@ -297,16 +380,16 @@ class CaptureService:
 
     @staticmethod
     def _check_continuity(client: ObsClient, event_offset: int) -> None:
-        if client.closed:
-            raise ObsError("OBS connection was lost; recording ownership is unproven")
         starts = 0
-        for event in client.record_events[event_offset:]:
-            state = event.get("outputState", "")
+        starting = 0
+        for state in CaptureService._record_states(client, event_offset):
             if state.endswith(("_STOPPING", "_STOPPED")):
                 raise ObsError("An intervening stop invalidated recording ownership")
             if state.endswith("_STARTED"):
                 starts += 1
-            if starts > 1 or (starts and state.endswith("_STARTING")):
+            if state.endswith("_STARTING"):
+                starting += 1
+            if starts > 1 or starting > 1 or (starts and state.endswith("_STARTING")):
                 raise ObsError("An intervening restart invalidated recording ownership")
 
     def stop_recording(self, session_id: str, dry_run: bool = True) -> dict[str, Any]:
@@ -330,17 +413,18 @@ class CaptureService:
             with self._file_lock():
                 manifest.update(state="stopping", stop_requested_at=utc_now())
                 self._write_manifest(manifest)
+                stop_event_offset = None
                 try:
                     # Recheck after the filesystem lock; never adopt a replacement recording.
                     if client.request("GetRecordStatus").get("outputActive") is not True:
                         raise ObsError("Recording stopped before StopRecord; no stop was sent")
                     self._check_continuity(client, event_offset)
+                    stop_event_offset = len(client.record_events)
                     stopped = client.request("StopRecord")
                     output_path = _local_path(stopped.get("outputPath", ""))
                     manifest["output_path"] = str(output_path)
-                    if client.request("GetRecordStatus").get("outputActive") is not False:
-                        raise ObsError("OBS did not confirm recording finalized")
-                    manifest["may_be_recording"] = False
+                    self._wait_record_state(client, stop_event_offset, False)
+                    manifest.update(may_be_recording=False, stop_confirmed_at=utc_now())
                     if output_path.parent != _local_path(manifest["record_directory"]):
                         raise ObsError("OBS output path differs from this session directory; file was not read")
                     before = output_path.stat()
@@ -356,13 +440,13 @@ class CaptureService:
                     manifest.update(state="completed", stopped_at=utc_now(),
                         output_bytes=after.st_size, output_sha256=digest.hexdigest(),
                         file_finalized=True, content_verification="Not performed; file existence and hash do not prove correct video or audio")
-                    self._restore_directory(client, manifest)
+                    self._restore_directory(client, manifest, stop_event_offset)
                     self._write_manifest(manifest)
                     return {**manifest, "manifest_path": str(self._manifest_path(session_id))}
                 except Exception as exc:
                     manifest.update(state="failed", error=str(exc) if isinstance(exc, ObsError) else "Local file verification failed",
                         ownership="Inspect OBS; do not infer that a failed request stopped recording")
-                    self._restore_directory(client, manifest)
+                    self._restore_directory(client, manifest, stop_event_offset)
                     self._write_manifest(manifest)
                     raise ObsError(f"Capture stop or verification failed; inspect session {session_id} and OBS") from None
                 finally:
@@ -370,7 +454,7 @@ class CaptureService:
                     client.close()
 
     def capture_sessions(self, limit: int = 20) -> dict[str, Any]:
-        """Read recent persistent capture manifests and this process's current stop authority."""
+        """Read recent saved capture manifests and this process's current permission to stop a recording."""
         if type(limit) is not int or not 1 <= limit <= 100:
             raise ValueError("limit must be an integer from 1 to 100")
         with self._lock:
@@ -381,7 +465,7 @@ class CaptureService:
                 manifest = self._read_manifest(path.parent.name)
                 sessions.append({key: manifest.get(key) for key in ("session_id", "state", "created_at",
                     "updated_at", "title", "category", "scene_name", "output_path", "output_bytes",
-                    "output_sha256", "capture_verified", "error")})
+                    "output_sha256", "capture_verified", "may_be_recording", "error")})
                 lease = self._owned.get(manifest["session_id"])
                 sessions[-1]["stop_ownership_held"] = lease is not None and not lease[0].closed
             return {"sessions": sessions, "total": len(paths)}

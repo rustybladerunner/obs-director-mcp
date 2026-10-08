@@ -6,6 +6,7 @@ No method exposes arbitrary OBS requests or streaming credentials.
 from __future__ import annotations
 
 from contextlib import contextmanager
+from dataclasses import replace
 import json
 import math
 import os
@@ -30,6 +31,8 @@ TRANSFORM_BOUNDS = {
 }
 BOUNDS_TYPES = {"OBS_BOUNDS_" + value for value in (
     "NONE", "STRETCH", "SCALE_INNER", "SCALE_OUTER", "SCALE_TO_WIDTH", "SCALE_TO_HEIGHT", "MAX_ONLY")}
+MEDIA_READBACK_TIMEOUT = 3.0
+MEDIA_POLL_INTERVAL = 0.05
 
 
 def _boolean(value: Any, label: str) -> bool:
@@ -221,6 +224,7 @@ class ProductionService:
     def validate_action(self, action: str, parameters: dict[str, Any], client: ObsClient,
                         allow_live: bool = False) -> dict[str, Any]:
         values = self._normalize(action, parameters)
+        input_kind = None
         self._live_gate(client, allow_live)
         required = list(self._requests(action, values))
         if "scene_name" in values:
@@ -244,6 +248,7 @@ class ProductionService:
         if "source_name" in values:
             inputs = client.request("GetInputList").get("inputs", [])
             found = next((item for item in inputs if item.get("inputName") == values["source_name"]), None)
+            input_kind = found.get("inputKind") if found else None
             if action == "source_add":
                 if found:
                     raise ObsError("Input already exists; refusing to overwrite it")
@@ -254,6 +259,9 @@ class ProductionService:
             elif action == "source_settings" and set(values["settings"]) == {"text"}:
                 if not str(found.get("inputKind", "")).startswith("text_") or not isinstance(values["settings"]["text"], str):
                     raise ObsError("Text settings require an OBS text input and a text value")
+            if action == "media_action" and values["action"] == "restart" and input_kind == "ffmpeg_source":
+                required.append("GetSourceActive")
+                client.require_capabilities(["GetSourceActive"])
         if action == "scene_select" and values["target"] == "preview":
             if client.request("GetStudioModeEnabled").get("studioModeEnabled") is not True:
                 raise ObsError("Preview scene selection requires OBS Studio Mode")
@@ -271,6 +279,7 @@ class ProductionService:
             if action == "media_seek" and isinstance(state.get("mediaDuration"), (int, float)) and state["mediaDuration"] > 0 and values["position_ms"] > state["mediaDuration"]:
                 raise ObsError("Seek position exceeds the media duration")
         return {"action": action, "parameters": values, "required_requests": sorted(set(required)),
+                "input_kind": input_kind,
                 "media_before": state if action in ("media_action", "media_seek") else None,
                 "readback_expected": action != "media_action" or values["action"] not in ("next", "previous")}
 
@@ -311,6 +320,15 @@ class ProductionService:
         setter, getter = self._requests(action, values)
         receipt = {**self.describe_action(action, values), "applied": None, "verified": False,
                    "checked_at": utc_now(), "verification": "OBS accepted the action; readback did not establish the requested state"}
+        if action == "media_action" and values["action"] == "restart" and plan["input_kind"] == "ffmpeg_source":
+            try:
+                prepared = self._prepare_media_restart(client, values["source_name"], allow_live)
+            except Exception:
+                prepared = None
+            if prepared is None:
+                return {**receipt, "applied": False, "uncertain": False,
+                        "verification": "FFmpeg source did not pass visibility and output-state checks; restart was not sent"}
+            plan["media_before"], started = prepared
         try:
             client.request(setter, self._payload(action, values))
             receipt["applied"] = True
@@ -327,6 +345,8 @@ class ProductionService:
 
     def _readback(self, action: str, values: dict[str, Any], client: ObsClient,
                   getter: str, media_before: dict[str, Any] | None, started: float) -> bool:
+        if action == "media_action":
+            return self._wait_media_action(values, client, media_before, started)
         if action in ("scene_create", "scene_select"):
             state = client.request(getter)
             verified = (values["scene_name"] in [item.get("sceneName") for item in state.get("scenes", [])]
@@ -355,14 +375,75 @@ class ProductionService:
             elif action == "media_seek":
                 verified = self._media_cursor_verified(media_before, state, values["position_ms"],
                     (time.monotonic() - started) * 1000, restart=False)
-            else:
-                if values["action"] == "restart":
-                    verified = self._media_cursor_verified(media_before, state, 0,
-                        (time.monotonic() - started) * 1000, restart=True)
-                else:
-                    expected = {"play": "PLAYING", "pause": "PAUSED", "stop": "STOPPED"}.get(values["action"])
-                    verified = expected is not None and state.get("mediaState") == "OBS_MEDIA_STATE_" + expected
         return verified
+
+    @staticmethod
+    def _prepare_media_restart(client: ObsClient, source_name: str, allow_live: bool) -> tuple[dict[str, Any], float] | None:
+        """Wait for a showing FFmpeg source and refresh its pre-write media snapshot."""
+        deadline = time.monotonic() + MEDIA_READBACK_TIMEOUT
+        original_settings = client.settings
+
+        def read(request: str, data: dict[str, Any]) -> dict[str, Any]:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ObsError("FFmpeg source visibility wait expired")
+            client.settings = replace(original_settings, timeout=min(original_settings.timeout, remaining))
+            result = client.request(request, data)
+            if time.monotonic() >= deadline:
+                raise ObsError("FFmpeg source visibility wait expired")
+            return result
+
+        def showing() -> bool:
+            value = read("GetSourceActive", {"sourceName": source_name}).get("videoShowing")
+            if type(value) is not bool:
+                raise ObsError("FFmpeg source visibility is unknown")
+            return value
+
+        try:
+            while time.monotonic() < deadline:
+                if showing():
+                    # Becoming visible may itself start playback. Do not credit
+                    # that earlier transition to a restart which has not been sent.
+                    started = time.monotonic()
+                    before = read("GetMediaInputStatus", {"inputName": source_name})
+                    recording = read("GetRecordStatus", {}).get("outputActive")
+                    streaming = read("GetStreamStatus", {}).get("outputActive")
+                    if (type(recording) is not bool or type(streaming) is not bool
+                            or ((recording or streaming) and not allow_live)):
+                        raise ObsError("OBS output activity changed while waiting for the FFmpeg source")
+                    if showing():
+                        return before, started
+                time.sleep(min(MEDIA_POLL_INTERVAL, max(0, deadline - time.monotonic())))
+            return None
+        finally:
+            client.settings = original_settings
+
+    def _wait_media_action(self, values: dict[str, Any], client: ObsClient,
+                           before: dict[str, Any] | None, started: float) -> bool:
+        """Wait for OBS's queued action without resending it or extending the deadline."""
+        action = values["action"]
+        if action in ("next", "previous"):
+            return False
+        expected = {"play": "PLAYING", "pause": "PAUSED", "stop": "STOPPED", "restart": "PLAYING"}[action]
+        deadline = time.monotonic() + MEDIA_READBACK_TIMEOUT
+        original_settings = client.settings
+        try:
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False
+                client.settings = replace(original_settings, timeout=min(original_settings.timeout, remaining))
+                state = client.request("GetMediaInputStatus", {"inputName": values["source_name"]})
+                observed_at = time.monotonic()
+                if observed_at >= deadline:
+                    return False
+                if state.get("mediaState") == "OBS_MEDIA_STATE_" + expected:
+                    if action != "restart" or self._media_cursor_verified(
+                            before, state, 0, (observed_at - started) * 1000, restart=True):
+                        return True
+                time.sleep(min(MEDIA_POLL_INTERVAL, max(0, deadline - time.monotonic())))
+        finally:
+            client.settings = original_settings
 
     @staticmethod
     def _media_cursor_verified(before: dict[str, Any] | None, after: dict[str, Any],
@@ -377,7 +458,7 @@ class ProductionService:
         before = before or {}
         old = before.get("mediaCursor")
         actual = after.get("mediaCursor")
-        if any(type(value) not in (int, float) or not math.isfinite(value) for value in (old, actual)):
+        if type(actual) not in (int, float) or not math.isfinite(actual):
             return False
         playing = after.get("mediaState") == "OBS_MEDIA_STATE_PLAYING"
         if restart and not playing:
@@ -387,8 +468,18 @@ class ProductionService:
         allowance = elapsed_ms if playing else 0
         if not target - 50 <= actual <= target + allowance + 50:
             return False
+        # A stopped FFmpeg input can clear its cursor. A new PLAYING state near
+        # zero proves this restart, whereas an already-playing input needs reset evidence.
+        if restart and before.get("mediaState") == "OBS_MEDIA_STATE_STOPPED" and "mediaCursor" in before and old is None:
+            return True
+        if type(old) not in (int, float) or not math.isfinite(old):
+            return False
         was_playing = before.get("mediaState") == "OBS_MEDIA_STATE_PLAYING"
         if was_playing:
+            duration = before.get("mediaDuration")
+            if type(duration) in (int, float) and math.isfinite(duration) and duration > 0 and old + elapsed_ms + 50 >= duration:
+                # A looping source can wrap to zero without the command taking effect.
+                return False
             # A point in the original playback's possible interval is not reset/seek evidence.
             return not old - 50 <= actual <= old + elapsed_ms + 50
         if restart:
@@ -414,7 +505,10 @@ class ProductionService:
             return {"dry_run": False, **self.apply_action(action, plan["parameters"], client, allow_live)}
 
     def create_scene(self, scene_name: str, dry_run: bool = True, allow_live: bool = False) -> dict[str, Any]:
-        """Preview or create a new scene; active outputs require allow_live."""
+        """Return a scene-creation plan by default. To create the scene, set dry_run=False.
+
+        Active recording or streaming needs allow_live=True.
+        """
         return self.execute_action("scene_create", {"scene_name": scene_name}, dry_run, allow_live)
 
     def select_scene(self, scene_name: str, target: str = "program", dry_run: bool = True, allow_live: bool = False) -> dict[str, Any]:
@@ -426,7 +520,10 @@ class ProductionService:
         return self.execute_action("source_add", {"scene_name": scene_name, "source_name": source_name, "input_kind": input_kind, "settings": settings}, dry_run, allow_live)
 
     def source_settings(self, source_name: str, settings: dict[str, Any], dry_run: bool = True, allow_live: bool = False) -> dict[str, Any]:
-        """Preview or overlay explicit input settings; receipts never echo settings."""
+        """Return a plan, or apply the supplied input settings.
+
+        Preserve settings that were not supplied. Results do not contain settings.
+        """
         return self.execute_action("source_settings", {"source_name": source_name, "settings": settings}, dry_run, allow_live)
 
     def source_visibility(self, scene_name: str, scene_item_id: int, enabled: bool, dry_run: bool = True, allow_live: bool = False) -> dict[str, Any]:
@@ -454,7 +551,7 @@ class ProductionService:
         return self.execute_action("filter_enabled", {"source_name": source_name, "filter_name": filter_name, "enabled": enabled}, dry_run, allow_live)
 
     def media_action(self, source_name: str, action: str, dry_run: bool = True, allow_live: bool = False) -> dict[str, Any]:
-        """Preview or play/pause/stop/restart/advance media; next/previous remain unverified."""
+        """Return a plan, or control media playback. Next/previous results remain unverified."""
         return self.execute_action("media_action", {"source_name": source_name, "action": action}, dry_run, allow_live)
 
     def media_seek(self, source_name: str, position_ms: int, dry_run: bool = True, allow_live: bool = False) -> dict[str, Any]:
@@ -462,7 +559,10 @@ class ProductionService:
         return self.execute_action("media_seek", {"source_name": source_name, "position_ms": position_ms}, dry_run, allow_live)
 
     def output_control(self, output: str, action: str, dry_run: bool = True) -> dict[str, Any]:
-        """Explicit output control; never available to director cues or recording leases."""
+        """Return an output-command plan by default.
+
+        Execution needs OBS_MCP_ALLOW_OUTPUT_CONTROL=1. Cues cannot use this tool.
+        """
         _boolean(dry_run, "dry_run")
         choices = {"stream": ("Stream", "GetStreamStatus"),
                    "virtualcam": ("VirtualCam", "GetVirtualCamStatus"),

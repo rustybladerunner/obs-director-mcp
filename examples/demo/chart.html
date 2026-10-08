@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>OBS Director — synthetic cue rehearsal</title>
+  <link rel="stylesheet" href="chart.css">
+  <script src="chart.js" defer></script>
+</head>
+<body>
+  <main id="stage" aria-label="Synthetic director demo at 1280 by 720 pixels">
+    <header class="masthead">
+      <div class="identity"><span class="identity-mark" aria-hidden="true"></span><span>DIRECTOR LAB</span><span class="divider"></span><span>OBS / LOCAL PRODUCTION</span></div>
+      <div class="fixture-badge"><span aria-hidden="true"></span>SYNTHETIC FIXTURE</div>
+      <h1>Evidence in motion<span>.</span></h1>
+      <p class="subtitle">One registered event. A card, a closer look, a replay.</p>
+      <div class="edition"><strong>07</strong><span>CONTROL STUDY<br>1280 × 720</span></div>
+    </header>
+
+    <section class="chart-panel" aria-labelledby="chart-title">
+      <div class="panel-heading">
+        <div><span class="eyebrow">FIXED SYNTHETIC SAMPLES</span><h2 id="chart-title">A change worth inspecting</h2></div>
+        <div class="chart-key"><span class="trace-key"></span>REFERENCE TRACE<span class="window-key"></span>REVIEW WINDOW</div>
+      </div>
+      <svg id="trace-chart" viewBox="0 0 1184 274" role="img" aria-label="A synthetic nonfinancial trace with an amber review window from sample 40 to 52">
+        <defs>
+          <linearGradient id="trace-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7ca9a2" stop-opacity=".18"/><stop offset="1" stop-color="#7ca9a2" stop-opacity="0"/></linearGradient>
+          <linearGradient id="window-fill" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#c29a67" stop-opacity=".04"/><stop offset=".5" stop-color="#c29a67" stop-opacity=".12"/><stop offset="1" stop-color="#c29a67" stop-opacity=".04"/></linearGradient>
+        </defs>
+        <g class="grid-lines"><path d="M32 48H1136M32 96H1136M32 144H1136M32 192H1136M32 240H1136"/><path d="M32 40V240M216 40V240M400 40V240M584 40V240M768 40V240M952 40V240M1136 40V240"/></g>
+        <rect x="492" y="40" width="138" height="200" fill="url(#window-fill)"/>
+        <path class="window-boundary" d="M492 40V240M630 40V240"/>
+        <text x="502" y="29" class="window-label">REVIEW WINDOW / 40–52</text>
+        <path id="trace-area" fill="url(#trace-fill)"/>
+        <path id="trace-path" class="trace-line"/>
+        <path id="scan-line" class="scan-line" d="M32 40V240"/>
+        <circle id="scan-halo" class="scan-halo" r="11" cx="32" cy="144"/>
+        <circle id="scan-dot" class="scan-dot" r="4" cx="32" cy="144"/>
+        <g class="axis-labels"><text x="32" y="264">00</text><text x="207" y="264">16</text><text x="391" y="264">32</text><text x="575" y="264">48</text><text x="759" y="264">64</text><text x="943" y="264">80</text><text x="1121" y="264">96</text></g>
+      </svg>
+      <div class="chart-caption"><span>ARBITRARY UNITS · NO LIVE INPUT</span><span id="sample-readout">LOCAL ANIMATION / SAMPLE 00</span></div>
+    </section>
+
+    <section class="evidence-panel" aria-label="Evidence text area. OBS supplies the event text in a separate source.">
+      <div class="well-label"><span>01</span>EVIDENCE CARD</div>
+      <div class="well-corner" aria-hidden="true"></div>
+    </section>
+    <aside class="replay-panel" aria-label="Replay area. OBS controls the separate media source.">
+      <div class="well-label"><span>03</span>REPLAY</div>
+      <div class="replay-description"><span class="replay-icon" aria-hidden="true">↺</span><div>Controlled by the cue<small>LOCAL CLIP · NO STREAM OUTPUT</small></div></div>
+      <div class="well-corner" aria-hidden="true"></div>
+    </aside>
+    <footer><span>OBS DIRECTOR MCP</span><span>EVENT → EVIDENCE → SPOTLIGHT → REPLAY</span><span>SYNTHETIC DEMO · NO FINANCIAL CLAIM</span></footer>
+  </main>
+</body>
+</html>

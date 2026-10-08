@@ -5,18 +5,20 @@ from mcp.types import ToolAnnotations
 from .capture import CaptureService
 from .controls import ProductionService
 from .cues import CueService
+from .events import EventService
 
 
-def create_server(production=None, capture=None, cues=None) -> FastMCP:
+def create_server(production=None, capture=None, cues=None, events=None) -> FastMCP:
     production = production or ProductionService()
     capture = capture or CaptureService()
     cues = cues or CueService(production)
+    events = events or EventService(cues)
     server = FastMCP("OBS Director", instructions=(
-        "Local OBS production controls. Inspect capabilities and state first. "
-        "Mutations preview by default. On-air changes require explicit allow_live. "
-        "Output lifecycle control requires the local operator enable flag. "
-        "Validate an entire director cue before execution. Partial failures do not "
-        "mean rollback. Never return credentials, source settings, or captured pixels."
+        "Read capabilities and OBS state first. Tools that change OBS use dry runs by default. "
+        "If recording or streaming is active, set allow_live=true for production changes. "
+        "Output start/stop commands need OBS_MCP_ALLOW_OUTPUT_CONTROL=1 locally. "
+        "Validate every cue step before execution. A failure does not reverse completed changes. "
+        "Do not return passwords, source settings, or captured pixels."
     ))
     read = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
     write = ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False)
@@ -48,6 +50,8 @@ def create_server(production=None, capture=None, cues=None) -> FastMCP:
         (capture.capture_sessions, "obs_capture_sessions", read),
         (cues.validate_cue, "obs_validate_cue", read),
         (cues.run_cue, "obs_run_cue", write),
+        (events.preview_event, "obs_preview_event", read),
+        (events.dispatch_event, "obs_dispatch_event", write),
     ]
     for handler, name, annotations in definitions:
         server.add_tool(handler, name=name, annotations=annotations)

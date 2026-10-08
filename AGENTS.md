@@ -3,11 +3,12 @@
 Read this file and CLAUDE.md before changes. This is a standalone repository.
 The operator-authorized objective is a portable OBS MCP with live production
 controls, deterministic director cues, verified capture ownership, and a clean
-future public release. No publication has been authorized.
+public release. Publication requires a current operator instruction.
 
 - One writer per file. Inspect current Git changes before editing or staging.
-- Read-only OBS inspection is allowed. Do not mutate the operator's active
-  recording or stream during development. Test changes with synthetic clients.
+- Read-only OBS inspection is allowed. Preserve an existing recording or stream.
+  Use synthetic clients for unit tests. For an authorized live rehearsal, use an
+  isolated scene collection and profile. Restore the original selection afterward.
 - Use the public OBS WebSocket v5 protocol and installed MCP SDK. Never copy
   upstream GPL implementation into this original project.
 - No personal paths, recordings, account data, stream keys or credentials in Git.
