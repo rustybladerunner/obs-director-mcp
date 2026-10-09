@@ -31,7 +31,40 @@ Release evidence must distinguish synthetic tests, MCP protocol checks, real OBS
 state checks, rendered media inspection, and continuous producer operation.
 Passing one category does not establish the others.
 
-## Current upgrade: 0.2.0a1
+## Current upgrade: 0.2.0a2
+
+The complete [tournament show](SHOW-DEMO.md) adds Starting Soon, the table,
+standings, illustrative replay, break and ending scenes. Two opposing trader
+cards show large signed net P&L. A strict demo/paper snapshot declares currency,
+session, fees and tie rules; missing and stale participants remain unranked.
+Repo-owned skills guide general layout design and tournament presentation.
+
+Three transition tools inspect and select existing native transitions and
+configure an already-selected native stinger. The example includes an original
+silent lossless alpha WebM and a media-overlay stinger rehearsal. Native
+transition creation is not exposed by OBS WebSocket v5.
+
+Local OBS acceptance on 2026-10-08: the 42-second complete-show rehearsal reached
+all seven phases, including the return to the table. Six cuts passed the
+covered-window readback checks. The receiver finalized and original profile,
+collection, scene and video were restored. Actual scene screenshots were
+inspected. Decoded stinger frames establish transparent endpoints and fully
+opaque frames 15–52. This is synthetic local evidence, not a platform broadcast.
+The prior failed takes remain in private runtime evidence.
+
+The integrated suite passed 358 tests. MCP discovery exposed 34 tools and passed
+the disconnected negative control. Received-show inspection covered all six
+distinct scenes and six transition frame sequences. All 1,262 received video
+frames decoded; one 66 ms interval prevents a perfect frame-cadence claim.
+The 42.12-second recording includes stereo AAC test-tone audio. Timed frame
+inspection and audio measurements are not a claim of full-video viewing or
+listened-audio acceptance. The larger single-host P&L also passed a separate
+25-second rehearsal with gain/loss and audience-alert states.
+
+This upgrade remains local; the following section records the earlier layout
+milestone and its own validation scope.
+
+## Previous local milestone: 0.2.0a1
 
 The local upgrade adds complete layout recipes, image and color layers, borders,
 and repeatable item order. Funded Desk is one copyable template with light and

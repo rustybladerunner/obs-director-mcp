@@ -18,6 +18,7 @@ MAX_BYTES = 4 * 1024 * 1024
 # Original generated artwork inspected for this release. No directory-wide media exemption.
 # Both source-tree and installed-wheel paths must match these exact bytes.
 REVIEWED_ASSETS = {
+    "examples/tournament/piphound-stinger.webm": "d3a1d5d9fecb31b3be279de8d30e41640723488ff81f1c062b63500b14d18b49",
     "obs_director/template_data/assets/background-dark.png": "54e78c9bf5eb37d59ea068c9ed598bd433ce61ec9129831fd4cf84080d5a5db9",
     "examples/funded-desk/presenter.png": "1c17047ec2118451e7a21b6a474be049d8dc6f48e749bafeaafc007a883dfce9",
     "obs_director/template_data/assets/background.png": "9e964d04e951d9e23d1a4693209888aa3495ea992666a87490f889055002e929",

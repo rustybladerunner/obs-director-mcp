@@ -23,6 +23,7 @@ EXPECTED = {
     "obs_stop_recording", "obs_capture_sessions", "obs_validate_cue", "obs_run_cue",
     "obs_preview_event", "obs_dispatch_event",
     "obs_preview_layout", "obs_apply_layout", "obs_list_templates", "obs_get_template",
+    "obs_transitions", "obs_select_transition", "obs_configure_stinger",
 }
 
 
@@ -31,6 +32,7 @@ def installed_command(python, environment, cwd):
     probe = (
         "import importlib.metadata as m,json,pathlib,sysconfig,os; import obs_director; "
         "d=m.distribution('obs-director-mcp'); "
+        "assert obs_director.__version__==d.version; "
         "assert not json.loads(d.read_text('direct_url.json') or '{}').get('dir_info',{}).get('editable',False); "
         "e=[x for x in d.entry_points if x.group=='console_scripts' and x.name=='obs-director-mcp']; "
         "assert len(e)==1 and e[0].value=='obs_director.server:main'; "

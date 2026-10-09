@@ -23,3 +23,8 @@ public release. Publication requires a current operator instruction.
 Checks: `python -m unittest discover -s tests -v`,
 `python tools/public_check.py`, and `python tools/smoke.py`.
 `python tools/smoke.py --live` is read-only against configured OBS.
+
+For layout creation, use [.agents/skills/obs-layout-design/SKILL.md](.agents/skills/obs-layout-design/SKILL.md).
+For a tournament broadcast, also use
+[.agents/skills/obs-tournament-broadcast/SKILL.md](.agents/skills/obs-tournament-broadcast/SKILL.md).
+These skills guide design and validation. They do not authorize public output.

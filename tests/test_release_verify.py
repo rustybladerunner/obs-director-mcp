@@ -44,12 +44,26 @@ dependencies = ["mcp>=1.21.1,<2"]
 [project.scripts]
 obs-director-mcp = "obs_director.server:main"
 '''
+        self.skill_files = (".agents/skills/test-design/SKILL.md",
+                            ".agents/skills/test-design/references/contract.md",
+                            ".agents/skills/test-design/agents/openai.yaml")
+        self.stinger_name = "examples/tournament/piphound-stinger.webm"
         self.sources = {"LICENSE": b"MIT test license\n", "README.md": b"Public example.\n",
-                        "MANIFEST.in": b"include LICENSE README.md\n", "pyproject.toml": project.encode(),
+                        "AGENTS.md": b"Use synthetic tests for verification.\n",
+                        "CLAUDE.md": b"Local development instructions.\n",
+                        "MANIFEST.in": (b"include LICENSE README.md AGENTS.md CLAUDE.md\n"
+                                        b"recursive-include .agents/skills *.md *.yaml\n"
+                                        b"recursive-include examples *.md *.webm\n"),
+                        "pyproject.toml": project.encode(),
                         "run_server.py": b"# entry point\n", "requirements-ci.lock": b"# test fixture\n",
                         "src/obs_director/__init__.py": b'__version__ = "0.1.0a1"\n',
                         "src/obs_director/server.py": b"def main(): pass\n",
-                        ".github/workflows/ci.yml": b"name: Fixture\n"}
+                        ".github/workflows/ci.yml": b"name: Fixture\n",
+                        self.skill_files[0]: b"---\nname: test-design\ndescription: Synthetic design fixture.\n---\nInspect local pixels.\n",
+                        self.skill_files[1]: b"# Contract\nA preview is not visual acceptance.\n",
+                        self.skill_files[2]: b"interface:\n  display_name: Test design\n",
+                        "examples/tournament/README.md": b"Original local overlay example.\n",
+                        self.stinger_name: (ROOT / self.stinger_name).read_bytes()}
         for name, data in self.sources.items():
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -102,6 +116,44 @@ obs-director-mcp = "obs_director.server:main"
         self.assertEqual(result["sources"]["LICENSE"], hashlib.sha256(self.sources["LICENSE"]).hexdigest())
         self.assertEqual(result["artifacts"][self.wheel_path.name]["sha256"], hashlib.sha256(self.wheel_path.read_bytes()).hexdigest())
         self.assertEqual(len(result["artifacts"]), 2)
+
+    def test_operator_docs_skills_and_examples_are_source_only_and_hash_bound(self):
+        result = verify.verify(self.root, self.dist)
+        names = ("AGENTS.md", "CLAUDE.md", *self.skill_files,
+                 "examples/tournament/README.md", self.stinger_name)
+        for name in names:
+            with self.subTest(name=name):
+                digest = hashlib.sha256(self.sources[name]).hexdigest()
+                self.assertEqual(result["sources"][name], digest)
+                self.assertEqual(result["artifacts"][self.sdist_path.name]["members"][self.stem + "/" + name], digest)
+                self.assertNotIn(name, result["artifacts"][self.wheel_path.name]["members"])
+
+    def test_resealed_skill_omission_cannot_hide_from_source_inventory(self):
+        original = dict(self.sdist)
+        for name in self.skill_files:
+            with self.subTest(name=name):
+                self.sdist = dict(original)
+                del self.sdist[name]
+                listing = self.sdist[self.egg + "SOURCES.txt"].decode().splitlines()
+                self.sdist[self.egg + "SOURCES.txt"] = "\n".join(row for row in listing if row != name).encode()
+                self.write_sdist()
+                self.rejected("unexpected or missing source archive content")
+
+    def test_changed_skill_markdown_and_yaml_fail_exact_source_parity(self):
+        original = dict(self.sdist)
+        for name in self.skill_files:
+            with self.subTest(name=name):
+                self.sdist = dict(original)
+                self.sdist[name] += b"# changed after review\n"
+                self.write_sdist()
+                self.rejected("differs from release source")
+
+    def test_reviewed_media_allowance_does_not_cover_changed_source_bytes(self):
+        changed = self.sources[self.stinger_name] + b"changed"
+        (self.root / self.stinger_name).write_bytes(changed)
+        self.sdist[self.stinger_name] = changed
+        self.write_sdist()
+        self.rejected("public-content check failed")
 
     def test_resealed_changed_wheel_code_is_not_source_parity(self):
         self.wheel["obs_director/server.py"] += b"# changed after testing\n"

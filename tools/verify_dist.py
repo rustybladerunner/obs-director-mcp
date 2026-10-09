@@ -93,11 +93,12 @@ def read_archive(path: Path) -> dict[str, bytes]:
 
 def source_files(root: Path) -> dict[str, bytes]:
     """The approved source-distribution surface, independent of archive metadata."""
-    names = {"LICENSE", "README.md", "MANIFEST.in", "pyproject.toml", "run_server.py", "requirements-ci.lock"}
+    names = {"LICENSE", "README.md", "AGENTS.md", "CLAUDE.md", "MANIFEST.in", "pyproject.toml", "run_server.py", "requirements-ci.lock"}
     for pattern in ("src/obs_director/**/*.py", "src/obs_director/template_data/**/*.json",
                     "src/obs_director/template_data/**/*.md", "src/obs_director/template_data/**/*.png",
                     "docs/**/*.md", "examples/**/*.json",
                     "examples/**/*.html", "examples/**/*.css", "examples/**/*.js", "examples/**/*.png",
+                    "examples/**/*.md", "examples/**/*.webm", ".agents/skills/**/*.md", ".agents/skills/**/*.yaml",
                     "tools/**/*.py", "tests/**/*.py", ".github/**/*.yml"):
         names.update(p.relative_to(root).as_posix() for p in root.glob(pattern))
     result = {}

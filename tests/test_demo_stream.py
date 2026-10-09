@@ -454,7 +454,8 @@ class StreamTests(unittest.TestCase):
                     patch.object(demo, "hidden_stdio", stdio), patch.object(demo, "ClientSession", return_value=MCP()), \
                     patch.object(demo.rehearse, "require_owned_selection"), patch.object(demo.asyncio, "sleep", new_callable=AsyncMock), \
                     patch.object(demo, "stream_phases", new_callable=AsyncMock), \
-                    patch.object(demo, "pnl_display", return_value={"text": "DEMO P&L\n+$245.00", "color": 0xFF00AA00}):
+                    patch.object(demo, "pnl_display", return_value={"text": "DEMO P&L\n+$245.00", "color": 0xFF00AA00,
+                        "headline": "USD +245.00", "label": "DEMO SESSION P&L", "details": "R +250.00 U +0.00 Fees 5.00", "as_of": "2026-10-09 00:00:00 UTC"}):
                 asyncio.run(demo.build_and_stream(self.client, self.receiver, self.lease, output, files, [], "p", "c", theme="dark", presenter="cutout"))
             self.assertEqual(copy.call_args.kwargs, {"theme": "dark"})
             self.assertEqual(len(sessions), 2)
@@ -477,7 +478,10 @@ class StreamTests(unittest.TestCase):
             host = next(layer for layer in layout["layers"] if layer["id"] in ("host", "host-inset"))
             self.assertNotIn("border", host)
         overlays = [args for name, args in calls if name == "obs_add_source" and args["source_name"].startswith(("Demo Pnl", "Demo Audience"))]
-        self.assertEqual(len(overlays), 4)
+        self.assertEqual(len(overlays), 6)
+        self.assertEqual(sources["Demo PnlText"]["settings"]["font"]["size"], 42)
+        self.assertEqual(sources["Demo PnlText"]["settings"]["text"], "USD +245.00")
+        self.assertIn("DEMO", sources["Demo PnlLabel"]["settings"]["text"])
         self.assertTrue(all(args["scene_name"] == "Funded Desk Dark" for args in overlays))
         hidden = [args for name, args in calls if name == "obs_source_visibility"]
         self.assertEqual(len(hidden), 2)
@@ -526,6 +530,7 @@ class StreamTests(unittest.TestCase):
                 alert_release.set()
         def pnl(negative=False):
             return {"text": "DEMO\n-$85.00" if negative else "DEMO\n+$245.00", "color": 123,
+                    "headline": "USD -85.00" if negative else "USD +245.00", "details": "fees 5.00", "as_of": "2026-10-09 00:00:00 UTC",
                     "net_minor": -8500 if negative else 24500, "state": "negative" if negative else "positive"}
         lease = Mock()
         count = [0]
@@ -544,6 +549,7 @@ class StreamTests(unittest.TestCase):
         self.assertEqual([flags for _, flags in screenshots], [[True, True], [False, False], [False, False], [True, True]])
         self.assertEqual([item["net_minor"] for item in trace if item["step"] == "demo_pnl"], [24500, -8500])
         self.assertTrue(all(item["allow_live"] is True and item["dry_run"] is False for item in updates))
+        self.assertEqual([item["settings"]["text"] for item in updates if item["source_name"] == "Demo PnlText"], ["USD +245.00", "USD -85.00"])
         self.assertEqual(visible, [False, False])
         self.assertEqual(self.clock, 25)
 

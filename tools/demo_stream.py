@@ -422,13 +422,17 @@ async def prepare_overlays(call, scene, theme):
     foreground = 0xFFF3F4F6 if theme == "dark" else 0xFF202020
     definitions = [
         ("Demo PnlPanel", "color_source_v3", {"width": 464, "height": 96, "color": 0xFF211B16}, (1416, 944, 464, 96)),
-        ("Demo PnlText", kind, {"text": pnl["text"], **text_colors(kind, pnl["color"])}, (1432, 954, 432, 76)),
+        ("Demo PnlLabel", kind, {"text": pnl["label"], **text_colors(kind, 0xFFF3F4F6)}, (1432, 947, 432, 16)),
+        ("Demo PnlText", kind, {"text": pnl["headline"], **text_colors(kind, pnl["color"])}, (1432, 961, 432, 48)),
+        ("Demo PnlDetail", kind, {"text": pnl["details"] + "\nAS OF " + pnl["as_of"], **text_colors(kind, 0xFFF3F4F6)}, (1432, 1008, 432, 30)),
         ("Demo AudiencePanel", "color_source_v3", {"width": 1296, "height": 76, "color": background}, (40, 96, 1296, 76)),
         ("Demo AudienceText", kind, {"text": "DEMO AUDIENCE ALERT", **text_colors(kind, foreground)}, (56, 100, 1264, 68)),
     ]
     for name, input_kind, settings, (_, _, width, height) in definitions:
         if input_kind == kind:
-            settings.update(font={"face": "Arial", "size": 18, "style": "Regular", "flags": 0}, outline=False)
+            size = {"Demo PnlText": 42, "Demo PnlLabel": 12, "Demo PnlDetail": 11}.get(name, 18)
+            bold = name == "Demo PnlText"
+            settings.update(font={"face": "Arial", "size": size, "style": "Bold" if bold else "Regular", "flags": 1 if bold else 0}, outline=False)
             if kind == "text_gdiplus_v3":
                 settings.update(extents=True, extents_cx=width, extents_cy=height, extents_wrap=True)
             else:
@@ -497,7 +501,10 @@ async def stream_phases(client, lease, call, scene, output, trace, profile, coll
         if overlays and index in (0, 3):
             pnl = pnl_display(negative=index == 3)
             await call("obs_source_settings", source_name="Demo PnlText",
-                       settings={"text": pnl["text"], **text_colors(overlays["text_kind"], pnl["color"])},
+                       settings={"text": pnl["headline"], **text_colors(overlays["text_kind"], pnl["color"])},
+                       dry_run=False, allow_live=True)
+            await call("obs_source_settings", source_name="Demo PnlDetail",
+                       settings={"text": pnl["details"] + "\nAS OF " + pnl["as_of"]},
                        dry_run=False, allow_live=True)
             trace.append({"step": "demo_pnl", "phase": index + 1, "net_minor": pnl["net_minor"], "state": pnl["state"]})
             event = normalize_audience_event({"platform": "twitch" if index == 0 else "youtube",
@@ -601,7 +608,8 @@ async def build_and_stream(client, receiver, lease, output, files, trace, profil
                     raise RuntimeError("A repeat layout application was not a zero-write operation")
                 await edit("obs_add_source", scene_name=scene, source_name="Demo Banner", input_kind="browser_source",
                     settings={"is_local_file": True, "local_file": str(files["banner"]), "width": 1920, "height": 96,
-                              "fps": 30, "shutdown": False, "css": ""})
+                              "fps": 30, "shutdown": False, "css": (
+                                  "body{color:#f3f4f6}.brand span,.live{color:#d4ad65}" if theme == "dark" else "")})
                 items = await call("obs_scene_sources", scene_name=scene)
                 banner = [item for item in items["sources"] if item["sourceName"] == "Demo Banner"]
                 if len(banner) != 1 or type(banner[0].get("sceneItemId")) is not int:
@@ -638,14 +646,15 @@ async def build_and_stream(client, receiver, lease, output, files, trace, profil
                 lease.stop()
 
 
-async def run(args):
+async def run(args, *, asset_loader=None, builder=None, show_name="funded-desk", duration_seconds=SECONDS):
+    """Shared isolated loopback lifecycle; builders cannot replace the receiver or lease."""
     theme = getattr(args, "theme", "light")
     presenter = getattr(args, "presenter", "framed")
     demo_options(theme, presenter)
-    files = local_assets(args.assets_directory.resolve(), presenter=presenter)
+    files = (asset_loader or local_assets)(args.assets_directory.resolve(), presenter=presenter)
     if not args.execute:
-        print(json.dumps({"preview": True, "template": "funded-desk", "destination": LOOPBACK_URL,
-                          "theme": theme, "presenter": presenter, "duration_seconds": SECONDS, "network_scope": "loopback only", "obs_contacted": False}))
+        print(json.dumps({"preview": True, "template": show_name, "destination": LOOPBACK_URL,
+                          "theme": theme, "presenter": presenter, "duration_seconds": duration_seconds, "network_scope": "loopback only", "obs_contacted": False}))
         return
     executable = shutil.which(args.ffmpeg)
     if executable is None:
@@ -672,7 +681,7 @@ async def run(args):
         try:
             prepare(client, original, profile, collection, pending)
             trace.append({"step": "isolated_setup", "video": VIDEO, "loopback_verified": True, "system_audio_muted": True})
-            await build_and_stream(client, receiver, lease, output, files, trace, profile, collection, theme=theme, presenter=presenter)
+            await (builder or build_and_stream)(client, receiver, lease, output, files, trace, profile, collection, theme=theme, presenter=presenter)
             trace.append({"step": "receiver_finalized", **receiver.finish()})
         finally:
             if lease.confirmed and not lease.stopped:

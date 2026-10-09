@@ -124,7 +124,8 @@ class PublicCheckTests(unittest.TestCase):
             if name.startswith("examples/"):
                 self.assertTrue(CHECK.scan_blob("src/" + name, data))
             self.assertTrue(CHECK.scan_blob(name.upper(), data))
-            self.assertTrue(CHECK.scan_blob(name, data, forbid_text=["background", "frame", "presenter"]))
+            findings = CHECK.scan_blob(name, data, forbid_text=[Path(name).stem])
+            self.assertIn("tree/private_text", {finding.category for finding in findings})
 
     def test_binary_and_oversized_source_fail_closed(self):
         self.write("binary.data", b"\x00\x01\xff")

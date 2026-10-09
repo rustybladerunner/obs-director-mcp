@@ -1,0 +1,14 @@
+{
+  "schema": "obs.overlay-stinger.v1",
+  "file": "piphound-stinger.webm",
+  "frames": 66,
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "duration_ms": 2200,
+  "opaque_start_ms": 500,
+  "opaque_end_ms": 1733,
+  "transition_point_ms": 900,
+  "audio": false,
+  "sha256": "d3a1d5d9fecb31b3be279de8d30e41640723488ff81f1c062b63500b14d18b49"
+}

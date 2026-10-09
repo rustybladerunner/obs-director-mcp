@@ -23,6 +23,8 @@ Package-registry publication is not part of this alpha.
 | Audio | Set the mute state and volume. |
 | Filters | Read filter names. Enable filters. Change settings of existing filters. |
 | Media | Play, pause, stop, start again, and seek. Next/previous commands have limited result verification. |
+| Transitions | Inspect and select existing transitions. Configure an already-selected native stinger from a local clip. |
+| Complete show | Render Starting Soon, a tournament table, standings, replay, break, and ending scenes from a bounded synthetic or paper snapshot. |
 | Outputs | Control the stream, replay buffer, and virtual camera through a separate tool. |
 | Capture | Record a session. Save local frame measurements and hashes of completed files. |
 | Director cues | Validate all steps before execution. Record completed, failed, and skipped steps. |
@@ -54,6 +56,19 @@ Choose a framed or transparent PipHound presenter. The demo also exercises signe
 [P&L displays](docs/PNL.md) and [audience alerts](docs/AUDIENCE.md).
 The audience adapter accepts synthetic or caller-supplied projections. Twitch and
 YouTube authentication and event ingestion are separate work, not included here.
+
+The [complete tournament show](docs/SHOW-DEMO.md) includes opposing trader cards,
+large signed net P&L, declared standings rules, and a reusable alpha stinger.
+It runs as a 42-second loopback rehearsal. The sample replay is an illustration,
+not a captured trade. This source-checkout example has no broker connection.
+Its [snapshot contract](docs/TOURNAMENT.md) keeps missing and stale entries unranked.
+The [transition tools](docs/TRANSITIONS.md) use native OBS transitions that already
+exist. The complete show demonstrates a shared media overlay stinger.
+
+Agents can use the repo-owned [layout design skill](.agents/skills/obs-layout-design/SKILL.md)
+and [tournament broadcast skill](.agents/skills/obs-tournament-broadcast/SKILL.md).
+The editable examples, skills and demo tools ship in the source archive;
+the wheel contains the MCP server and the Funded Desk template assets.
 
 Python 3.11 or later and OBS WebSocket v5 are necessary.
 Session recording also uses the recording-directory requests from WebSocket 5.3.

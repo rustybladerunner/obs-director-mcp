@@ -50,4 +50,7 @@ def render_pnl(snapshot: dict) -> dict:
     text = (f"{mode.upper()} P&L  {currency} {_amount(net)}\n"
             f"R {_amount(realized)}  U {_amount(opened)}  Fees {_amount(fees, signed=False)}\n"
             f"AS OF {observed.strftime('%Y-%m-%d %H:%M:%S')} UTC")
-    return {"text": text, "color": _COLORS[state], "net_minor": net, "state": state}
+    return {"text": text, "color": _COLORS[state], "net_minor": net, "state": state,
+            "label": f"{mode.upper()} SESSION P&L", "headline": f"{currency} {_amount(net)}",
+            "details": f"R {_amount(realized)}  U {_amount(opened)}  Fees {_amount(fees, signed=False)}",
+            "as_of": observed.strftime('%Y-%m-%d %H:%M:%S UTC')}

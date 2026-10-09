@@ -33,6 +33,9 @@ A real feed must handle stale or missing data and provide its actual timestamp.
 
 The result contains `text`, `color`, `net_minor` and `state`. State is `gain`,
 `loss` or `flat`. Signed amounts communicate the result without relying on color.
+It also returns `label`, `headline`, `details` and `as_of` for separate text
+layers. The single-host demo uses a bold 42 px headline, a visible mode label
+and smaller detail/time lines. The tournament cards use a 104 px net figure.
 Use the text on a dark panel. Large amounts may need a wider panel or smaller font.
 The demo shows a gain of USD 245.00 and a loss of USD 85.00 in separate phases.
 

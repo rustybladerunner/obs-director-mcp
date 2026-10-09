@@ -21,6 +21,10 @@ class PnlTests(unittest.TestCase):
         self.assertIn("R +250.00  U -10.00  Fees 5.00", result["text"])
         self.assertIn("AS OF 2026-10-09 00:00:00 UTC", result["text"])
         self.assertEqual(result["color"], 0xFFA2CC9A)
+        self.assertEqual(result["label"], "DEMO SESSION P&L")
+        self.assertEqual(result["headline"], "USD +235.00")
+        self.assertEqual(result["details"], "R +250.00  U -10.00  Fees 5.00")
+        self.assertEqual(result["as_of"], "2026-10-09 00:00:00 UTC")
 
     def test_gain_loss_and_flat_have_signed_amount_and_different_colors(self):
         results = [render_pnl(self.snapshot(realized_minor=x, unrealized_minor=0, fees_minor=0)) for x in (1, -1, 0)]

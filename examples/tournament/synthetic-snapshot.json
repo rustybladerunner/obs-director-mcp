@@ -1,0 +1,32 @@
+{
+  "schema": "obs.tournament.v1",
+  "mode": "demo",
+  "currency": "USD",
+  "session_id": "synthetic-final-01",
+  "label": "Static schema example",
+  "as_of": "2026-01-01T12:00:00Z",
+  "round": 3,
+  "stage": "final",
+  "participants": [
+    {
+      "id": "piphound",
+      "name": "PIPHOUND",
+      "realized_minor": 1248000,
+      "unrealized_minor": 21750,
+      "fees_minor": 1250,
+      "status": "active",
+      "observed_at": "2026-01-01T12:00:00Z",
+      "trade": {"instrument": "DEMO / POINTS", "direction": "long", "entry": 5124.25, "stop": 5118.0, "target": 5142.0}
+    },
+    {
+      "id": "housebot",
+      "name": "HOUSEBOT",
+      "realized_minor": 934000,
+      "unrealized_minor": -8400,
+      "fees_minor": 1050,
+      "status": "active",
+      "observed_at": "2026-01-01T12:00:00Z",
+      "trade": {"instrument": "DEMO / POINTS", "direction": "short", "entry": 5131.0, "stop": 5137.25, "target": 5114.0}
+    }
+  ]
+}
