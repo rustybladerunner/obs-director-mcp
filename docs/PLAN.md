@@ -33,6 +33,14 @@ Passing one category does not establish the others.
 
 ## Current upgrade: 0.2.0a4
 
+Commit `5d6d8dd` published this upgrade. Its first CI run exposed a Windows
+test harness encoding error: Node's UTF-8 output used the local code page.
+Explicit UTF-8 decoding fixes the reproduced failure without changing test
+assertions. The repaired local suite passes all 455 tests; fresh CI is pending.
+
+Local continuation: `outputs/continuation.md` (ignored private evidence). It
+records the unpublished intro, exact asset snapshot and remaining checks.
+
 Restore the near-black and warm-gold showcase palette. Add three original
 decorative Browser Source loops: Fibonacci construction, floating market forms,
 and poker chip/card geometry. The optional `--motion` renderer flag adds them

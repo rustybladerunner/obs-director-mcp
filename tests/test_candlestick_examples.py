@@ -55,7 +55,7 @@ console.log(JSON.stringify(stage));
         results=[]
         for pack in PACKS:
             run=subprocess.run([node,"-e",code,str(ROOT/"examples"/pack/"broadcast.js")],
-                input=json.dumps({"snapshot":snapshot,"view":view,"portrait":portrait}),text=True,capture_output=True,timeout=10,check=True)
+                input=json.dumps({"snapshot":snapshot,"view":view,"portrait":portrait}),text=True,encoding="utf-8",capture_output=True,timeout=10,check=True)
             results.append(json.loads(run.stdout))
         return results
 
@@ -71,7 +71,7 @@ console.log(JSON.stringify(stage));
         for pack in PACKS:
             result = subprocess.run([node, "-e", code, str(ROOT / "examples" / pack / "broadcast.js")],
                 input=json.dumps({"snapshot":snapshot,"rows":rows if rows is not None else snapshot["participants"]}),
-                text=True,capture_output=True,timeout=10,check=True)
+                text=True,encoding="utf-8",capture_output=True,timeout=10,check=True)
             output.append(json.loads(result.stdout))
         self.assertEqual(*output)
         return output[0]
