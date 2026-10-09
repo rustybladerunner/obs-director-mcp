@@ -1,4 +1,4 @@
-/* Original local renderer. Snapshot values are text, never HTML or scripts. */
+/* Neutral local presentation. Shared data helpers are parity-checked against the tournament renderer. */
 "use strict";
 
 function parseUTC(value) {
@@ -68,24 +68,17 @@ if (typeof document !== "undefined") {
   }
   function portrait(parent, large = false, participant = snapshot.participants[0]) {
     const box = node("div", large ? "intermission-portrait" : "portrait", null, parent);
-    box.dataset.identity = participant.id === "piphound" ? "piphound" : "initials";
-    if (bundle.portrait && participant.id === "piphound") {
-      const image = node("img", "", null, box);
-      image.src = "presenter.png";
-      image.alt = "PipHound, original illustrated presenter";
-    } else {
-      const initials = participant.name.split(/\s+/).map(word => word[0]).join("").slice(0,2).toUpperCase();
-      const letters = node("div", "initials", large ? null : initials, box);
-      if (large) node("span", "", initials, letters);
-    }
+    const initials = participant.name.split(/\s+/).map(word => word[0]).join("").slice(0,2).toUpperCase();
+    const letters = node("div", "initials", large ? null : initials, box);
+    if (large) node("span", "", initials, letters);
     return box;
   }
   function header(result) {
     const top = node("header", "topbar", null, stage);
     const brand = node("div", "brand", null, top);
     const titles = node("div", "brand-titles", null, brand);
-    node("div", "eyebrow", "PIPHOUND", titles);
-    node("h1", "", "THE TRADING TABLE", titles);
+    node("div", "eyebrow", "YOUR CHANNEL", titles);
+    node("h1", "", "SESSION DESK", titles);
     const status = node("div", "top-status", null, top);
     node("div", "session-label", snapshot.label, status);
     node("div", "pill", demonstration ? "DEMO" : "PAPER", status);
@@ -111,8 +104,8 @@ if (typeof document !== "undefined") {
     const svg = svgNode("svg", {viewBox: "0 0 1400 338", class: "chart", role: "img", "aria-label": "Illustrative synthetic chart; not market data"}, panel);
     const defs = svgNode("defs", {}, svg);
     const gradient = svgNode("linearGradient", {id: "chart-fill", x1: "0", y1: "0", x2: "0", y2: "1"}, defs);
-    svgNode("stop", {offset: "0%", "stop-color": "#bd852e", "stop-opacity": ".24"}, gradient);
-    svgNode("stop", {offset: "100%", "stop-color": "#bd852e", "stop-opacity": "0"}, gradient);
+    svgNode("stop", {offset: "0%", "stop-color": "#bdc5d0", "stop-opacity": ".24"}, gradient);
+    svgNode("stop", {offset: "100%", "stop-color": "#bdc5d0", "stop-opacity": "0"}, gradient);
     [32,96,160,224,288].forEach((y, index) => {
       svgNode("line", {x1: 0, x2: 1308, y1: y, y2: y, class: "chart-grid"}, svg);
       svgNode("text", {x: 1324, y: y + 5, class: "chart-axis"}, svg, (5148 - index * 8).toFixed(2));
@@ -123,7 +116,7 @@ if (typeof document !== "undefined") {
     const path = "M " + points.map(([x,y]) => x.toFixed(1) + " " + y).join(" L ");
     svgNode("path", {d: path + " L 1290 288 L 16 288 Z", class: "chart-area"}, svg);
     svgNode("path", {d: path, class: "chart-line"}, svg);
-    svgNode("circle", {cx: points.at(-1)[0], cy: points.at(-1)[1], r: 6, fill: "#d4ad65"}, svg);
+    svgNode("circle", {cx: points.at(-1)[0], cy: points.at(-1)[1], r: 6, fill: "#d6dce4"}, svg);
     svgNode("text", {x: 0, y: 328, class: "chart-note"}, svg, "STATIC ILLUSTRATION");
     svgNode("text", {x: 1136, y: 328, class: "chart-note"}, svg, "NOT MARKET DATA");
   }
@@ -213,7 +206,7 @@ if (typeof document !== "undefined") {
     node("div", "eyebrow", view === "starting-soon" ? "TAKE YOUR SEAT" : view === "break" ? "BACK AT THE TABLE SOON" : "UNTIL NEXT SESSION", copy);
     const title = view === "starting-soon" ? "The table\nis waiting." : view === "break" ? "A moment\naway." : "That's\nthe session.";
     node("h2", "", title, copy);
-    node("p", "subhead", view === "starting-soon" ? "Starting soon. Two seats. One shared board." : view === "break" ? "Taking a short break. Stay with us." : "Thanks for watching The Trading Table.", copy);
+    node("p", "subhead", view === "starting-soon" ? "Starting soon. Two seats. One shared board." : view === "break" ? "Taking a short break. Stay with us." : "Thanks for being part of the session.", copy);
     node("div", "intermission-rule", null, copy);
     if (view === "ending") {
       const resultBox = node("div", "ending-result", null, copy);
@@ -230,7 +223,7 @@ if (typeof document !== "undefined") {
     const art = node("div", "intermission-art", null, section);
     node("div", "orbit orbit-outer", null, art);
     node("div", "orbit orbit-inner", null, art);
-    node("div", "art-wordmark", "PIPHOUND", art);
+    node("div", "art-wordmark", "SESSION", art);
     portrait(art, true);
     node("div", "portrait-signature", snapshot.participants[0].name, art);
   }

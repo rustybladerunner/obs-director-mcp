@@ -1,7 +1,7 @@
 # Tournament broadcast scenes
 
 The offline renderer creates six original scenes from one validated competition snapshot.
-The pages use the Funded Desk dark palette and a 1920x1080 canvas.
+The neutral starter and PipHound showcase use a 1920x1080 canvas.
 They scale to 1280x720 without changing the layout.
 Large opposing trader cards make each participant's net P&L the main result.
 
@@ -26,8 +26,10 @@ python tools/render_tournament.py --snapshot snapshot.json --output runtime/tour
 
 The output directory must be new. The renderer validates inputs and reads all required assets before writing files.
 The command never starts OBS, a stream, a provider connection, or a web server.
-The `--demo` option creates synthetic PIPHOUND and HOUSEBOT values with the current creation time.
-It copies the original local PipHound image. Supplied snapshots use participant initials by default.
+The `--demo` option creates synthetic HOST and GUEST values with the current creation time.
+Add `--template piphound` for the illustrated PIPHOUND and HOUSEBOT showcase.
+That option copies the original local PipHound image for demo data.
+Supplied snapshots use participant initials by default and retain their supplied identities.
 
 The output contains editable HTML, `broadcast.css`, `broadcast.js`, `snapshot.json`, and `scenes.json`.
 The pages embed their snapshot. After a data change, generate a new bundle.

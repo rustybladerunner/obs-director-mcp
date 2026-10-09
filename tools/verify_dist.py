@@ -98,7 +98,8 @@ def source_files(root: Path) -> dict[str, bytes]:
                     "src/obs_director/template_data/**/*.md", "src/obs_director/template_data/**/*.png",
                     "docs/**/*.md", "examples/**/*.json",
                     "examples/**/*.html", "examples/**/*.css", "examples/**/*.js", "examples/**/*.png",
-                    "examples/**/*.md", "examples/**/*.webm", ".agents/skills/**/*.md", ".agents/skills/**/*.yaml",
+                    "examples/**/*.md", "examples/**/*.webm", "examples/**/*.ogg", "examples/**/*.wav",
+                    ".agents/skills/**/*.md", ".agents/skills/**/*.yaml",
                     "tools/**/*.py", "tests/**/*.py", ".github/**/*.yml"):
         names.update(p.relative_to(root).as_posix() for p in root.glob(pattern))
     result = {}

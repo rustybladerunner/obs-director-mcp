@@ -53,6 +53,11 @@ The formatter cannot authenticate those labels.
 
 ## Direct the show
 
+Use the [neutral starter](../../../docs/STARTER.md) for a portable first show.
+Use the [PipHound showcase](../../../docs/SHOW-DEMO.md) to study a fuller treatment.
+Both have six scene states and use the same snapshot contract. Keep each custom
+show pack separate from credentials, account connections and private data.
+
 For a complete broadcast, map Starting Soon -> Live -> Standings -> Replay ->
 Break -> Live -> Ending. Adapt the order to the event and the user's scope.
 Starting Soon needs a truthful scheduled time or an explicit waiting state, not
@@ -72,6 +77,14 @@ visible `REPLAY` label and original event time before the audience sees its data
 An overlay stinger is a media cue, not a configured native OBS transition; label
 the implementation accurately and verify its reveal and cleanup.
 Keep alerts clear of prices, participant identities, P&L and replay/status labels.
+
+The [original audio pack](../../../docs/AUDIO.md) and
+[mascot reaction clips](../../../docs/REACTIONS.md) are optional. Give music,
+stinger sound and mascot audio independent level controls. Keep desk music off
+unless the brief calls for it. Use reactions sparingly and preserve readable data.
+After muxing VP9 alpha with sound, verify the alpha-mode stream metadata as well
+as decoded alpha frames and actual OBS playback. Inspect a full music-loop join
+and listen to the mixed output before claiming audible acceptance.
 
 ## Prove the states
 

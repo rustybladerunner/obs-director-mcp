@@ -40,6 +40,20 @@ The server does not start a stream at startup. Cues cannot start a stream.
 
 ## Quick start
 
+Start with the [neutral six-scene starter](docs/STARTER.md), or choose the
+[PipHound showcase](docs/SHOW-DEMO.md) for a finished example with large trader
+cards, original artwork, a layered stinger and an [original audio pack](docs/AUDIO.md).
+Optional [PipHound reactions](docs/REACTIONS.md) add transparent puppet clips with
+original barks and captions.
+Both use the same snapshot contract and director. Copy a template into your own
+show folder; keep credentials, account connections and personal data outside Git.
+
+| Neutral starter | PipHound showcase |
+| --- | --- |
+| ![Neutral starter, synthetic results](examples/starter/preview.png) | ![PipHound showcase, synthetic results](examples/tournament/preview.png) |
+
+These previews show synthetic demo data captured from OBS.
+
 For the copyable layout, see [Templates](docs/TEMPLATES.md). The `funded-desk`
 template uses an original ivory, black, and gold theme informed by TradeFunded's
 visual style. It includes no brand logo and has no affiliation with TradeFunded.
@@ -59,7 +73,9 @@ YouTube authentication and event ingestion are separate work, not included here.
 
 The [complete tournament show](docs/SHOW-DEMO.md) includes opposing trader cards,
 large signed net P&L, declared standings rules, and a reusable alpha stinger.
-It runs as a 42-second loopback rehearsal. The sample replay is an illustration,
+It runs as a 42-second loopback rehearsal. Music plays only during intermissions.
+Major segment changes use the stinger; routine changes use a short dissolve.
+The sample replay is an illustration,
 not a captured trade. This source-checkout example has no broker connection.
 Its [snapshot contract](docs/TOURNAMENT.md) keeps missing and stale entries unranked.
 The [transition tools](docs/TRANSITIONS.md) use native OBS transitions that already

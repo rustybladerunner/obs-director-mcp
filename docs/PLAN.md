@@ -31,7 +31,36 @@ Release evidence must distinguish synthetic tests, MCP protocol checks, real OBS
 state checks, rendered media inspection, and continuous producer operation.
 Passing one category does not establish the others.
 
-## Current upgrade: 0.2.0a2
+## Current upgrade: 0.2.0a3
+
+The public source now has two entry points: a neutral six-scene starter and the
+PipHound showcase. Custom show packs use the same director and snapshot contract.
+Credentials, account connections and personal data remain outside the repository.
+The CLI defaults to the neutral starter; `--template piphound` selects the showcase.
+
+The showcase adds clearer trader cards and standings, a three-second layered
+alpha stinger, an original instrumental loop and effects, and three optional
+transparent bark-and-caption puppet reactions. Music stays off at the desk.
+Three major changes use the stinger; routine changes use short dissolves.
+The reaction clips move the whole cutout and do not provide articulated lip sync.
+
+The neutral starter passed a 42-second local OBS rehearsal. All six scene states
+were inspected in actual OBS screenshots and received 720p frames. The original
+profile, collection, scene and video settings were restored. The showcase's
+earlier takes caught an alpha metadata defect, a relative CLI path issue and
+reaction-placement collisions. Failed or superseded evidence remains private.
+
+The final 56-second showcase rehearsal completed all seven phases, three covered
+stinger changes, three dissolves and three play/capture/end/hide reaction cues.
+The original OBS selection and video settings were restored. Actual reaction
+screenshots show separate reserved areas clear of chart labels and portraits.
+The final suite, exact archive hashes and received-media checks are retained with
+the completed candidate's private acceptance record. Public previews contain
+only the supplied synthetic demo values.
+This evidence does not establish provider ingestion, public-platform streaming,
+real trading performance, full-video viewing or listened-audio acceptance.
+
+## Previous local milestone: 0.2.0a2
 
 The complete [tournament show](SHOW-DEMO.md) adds Starting Soon, the table,
 standings, illustrative replay, break and ending scenes. Two opposing trader

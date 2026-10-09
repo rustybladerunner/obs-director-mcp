@@ -1,0 +1,169 @@
+{
+  "schema": "obs.original-audio.v1",
+  "source": "Original procedural composition and synthesis; no external samples, recordings or services",
+  "generator": "tools/build_audio.py",
+  "seed": 481516,
+  "license": "MIT",
+  "tempo_bpm": 96,
+  "key": "E minor with modal ninths",
+  "bars": 8,
+  "meter": "4/4",
+  "music_seconds": 20.0,
+  "stinger_impact_seconds": 1.1,
+  "intended_scenes": [
+    "Starting Soon",
+    "Break",
+    "Ending"
+  ],
+  "live_desk_music_default": "off",
+  "artifacts": {
+    "intermission.ogg": {
+      "sha256": "60204184ae7a478ad37a207d02ada2e35d9c4359de86ac41fb11b5f86d00e285",
+      "bytes": 197499,
+      "codec": "vorbis",
+      "sample_rate": 48000,
+      "channels": 2,
+      "source_pcm": {
+        "frames": 960000,
+        "duration_seconds": 20.0,
+        "sample_peak_dbfs": -8.0,
+        "rms_dbfs": -20.9801,
+        "dc_mean": [
+          4.834307434895386e-19,
+          1.0364400722282644e-18
+        ],
+        "first_samples": [
+          0.0039333196887784755,
+          0.03923174185066476
+        ],
+        "last_samples": [
+          0.0027152911151857627,
+          0.037606235874402386
+        ],
+        "loop_seam_step": 0.0016255059762623758,
+        "max_adjacent_step": 0.02365117249958537,
+        "clipped_samples": 0
+      },
+      "decoded": {
+        "frames": 960000,
+        "duration_seconds": 20.0,
+        "sample_peak_dbfs": -8.0932,
+        "rms_dbfs": -20.9645,
+        "dc_mean": [
+          2.9847509800215257e-05,
+          8.977247832029842e-05
+        ],
+        "first_samples": [
+          0.0038524074479937553,
+          0.04017099738121033
+        ],
+        "last_samples": [
+          0.002636804711073637,
+          0.03812380135059357
+        ],
+        "loop_seam_step": 0.0020471960306167603,
+        "max_adjacent_step": 0.024550437927246094,
+        "clipped_samples": 0
+      }
+    },
+    "stinger.wav": {
+      "sha256": "557ac41221492c1cd8943f15a5d2748f4976740a2921a5cb44df090c3b1b7b30",
+      "bytes": 576044,
+      "codec": "pcm_s16le",
+      "sample_rate": 48000,
+      "channels": 2,
+      "source_pcm": {
+        "frames": 144000,
+        "duration_seconds": 3.0,
+        "sample_peak_dbfs": -6.0,
+        "rms_dbfs": -23.922,
+        "dc_mean": [
+          4.685269048118049e-06,
+          4.97369311763512e-06
+        ],
+        "first_samples": [
+          -0.0,
+          -0.0
+        ],
+        "last_samples": [
+          -0.0,
+          -0.0
+        ],
+        "loop_seam_step": 0.0,
+        "max_adjacent_step": 0.2797693093102096,
+        "clipped_samples": 0
+      },
+      "decoded": {
+        "frames": 144000,
+        "duration_seconds": 3.0,
+        "sample_peak_dbfs": -6.0005,
+        "rms_dbfs": -23.9223,
+        "dc_mean": [
+          4.503462049696181e-06,
+          3.4154256184895833e-06
+        ],
+        "first_samples": [
+          0.0,
+          0.0
+        ],
+        "last_samples": [
+          0.0,
+          0.0
+        ],
+        "loop_seam_step": 0.0,
+        "max_adjacent_step": 0.279754638671875,
+        "clipped_samples": 0
+      }
+    },
+    "alert.wav": {
+      "sha256": "edd78a50aeefbd742b075d10556e7a2130c3b2f005a3c7273e412188315e8d91",
+      "bytes": 134444,
+      "codec": "pcm_s16le",
+      "sample_rate": 48000,
+      "channels": 2,
+      "source_pcm": {
+        "frames": 33600,
+        "duration_seconds": 0.7,
+        "sample_peak_dbfs": -11.0,
+        "rms_dbfs": -21.6546,
+        "dc_mean": [
+          -4.4031810447146454e-07,
+          -4.4181887481023515e-07
+        ],
+        "first_samples": [
+          0.0,
+          0.0
+        ],
+        "last_samples": [
+          0.0,
+          0.0
+        ],
+        "loop_seam_step": 0.0,
+        "max_adjacent_step": 0.046688897421894554,
+        "clipped_samples": 0
+      },
+      "decoded": {
+        "frames": 33600,
+        "duration_seconds": 0.7,
+        "sample_peak_dbfs": -11.0003,
+        "rms_dbfs": -21.6548,
+        "dc_mean": [
+          -9.409586588541667e-07,
+          -8.746555873325893e-07
+        ],
+        "first_samples": [
+          0.0,
+          0.0
+        ],
+        "last_samples": [
+          0.0,
+          0.0
+        ],
+        "loop_seam_step": 0.0,
+        "max_adjacent_step": 0.04669189453125,
+        "clipped_samples": 0
+      }
+    }
+  },
+  "limits": "Sample peak/RMS and seam measurements are not perceived-loudness, listening-quality, OBS-looping or broadcast acceptance."
+}

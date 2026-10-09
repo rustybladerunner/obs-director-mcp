@@ -7,7 +7,7 @@ The two example participants are synthetic PIPHOUND and HOUSEBOT.
 From the repository root, generate a new bundle:
 
 ```console
-python tools/render_tournament.py --demo --output runtime/tournament-demo
+python tools/render_tournament.py --demo --template piphound --output runtime/tournament-demo
 ```
 
 The `runtime` parent must exist. The command refuses an existing output directory.

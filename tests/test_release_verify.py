@@ -48,12 +48,13 @@ obs-director-mcp = "obs_director.server:main"
                             ".agents/skills/test-design/references/contract.md",
                             ".agents/skills/test-design/agents/openai.yaml")
         self.stinger_name = "examples/tournament/piphound-stinger.webm"
+        self.audio_name = "examples/tournament/audio/alert.wav"
         self.sources = {"LICENSE": b"MIT test license\n", "README.md": b"Public example.\n",
                         "AGENTS.md": b"Use synthetic tests for verification.\n",
                         "CLAUDE.md": b"Local development instructions.\n",
                         "MANIFEST.in": (b"include LICENSE README.md AGENTS.md CLAUDE.md\n"
                                         b"recursive-include .agents/skills *.md *.yaml\n"
-                                        b"recursive-include examples *.md *.webm\n"),
+                                        b"recursive-include examples *.md *.webm *.ogg *.wav\n"),
                         "pyproject.toml": project.encode(),
                         "run_server.py": b"# entry point\n", "requirements-ci.lock": b"# test fixture\n",
                         "src/obs_director/__init__.py": b'__version__ = "0.1.0a1"\n',
@@ -63,7 +64,8 @@ obs-director-mcp = "obs_director.server:main"
                         self.skill_files[1]: b"# Contract\nA preview is not visual acceptance.\n",
                         self.skill_files[2]: b"interface:\n  display_name: Test design\n",
                         "examples/tournament/README.md": b"Original local overlay example.\n",
-                        self.stinger_name: (ROOT / self.stinger_name).read_bytes()}
+                        self.stinger_name: (ROOT / self.stinger_name).read_bytes(),
+                        self.audio_name: (ROOT / self.audio_name).read_bytes()}
         for name, data in self.sources.items():
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -120,7 +122,7 @@ obs-director-mcp = "obs_director.server:main"
     def test_operator_docs_skills_and_examples_are_source_only_and_hash_bound(self):
         result = verify.verify(self.root, self.dist)
         names = ("AGENTS.md", "CLAUDE.md", *self.skill_files,
-                 "examples/tournament/README.md", self.stinger_name)
+                 "examples/tournament/README.md", self.stinger_name, self.audio_name)
         for name in names:
             with self.subTest(name=name):
                 digest = hashlib.sha256(self.sources[name]).hexdigest()
@@ -138,6 +140,13 @@ obs-director-mcp = "obs_director.server:main"
                 self.sdist[self.egg + "SOURCES.txt"] = "\n".join(row for row in listing if row != name).encode()
                 self.write_sdist()
                 self.rejected("unexpected or missing source archive content")
+
+    def test_audio_omission_cannot_hide_from_source_inventory(self):
+        del self.sdist[self.audio_name]
+        listing = self.sdist[self.egg + "SOURCES.txt"].decode().splitlines()
+        self.sdist[self.egg + "SOURCES.txt"] = "\n".join(row for row in listing if row != self.audio_name).encode()
+        self.write_sdist()
+        self.rejected("unexpected or missing source archive content")
 
     def test_changed_skill_markdown_and_yaml_fail_exact_source_parity(self):
         original = dict(self.sdist)

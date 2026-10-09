@@ -18,6 +18,16 @@ MAX_BYTES = 4 * 1024 * 1024
 # Original generated artwork inspected for this release. No directory-wide media exemption.
 # Both source-tree and installed-wheel paths must match these exact bytes.
 REVIEWED_ASSETS = {
+    "examples/tournament/preview.png": "6a2115d78a38336097dfcc4c497e4f716e80842c10fc0a30e6277f4fe63d8774",
+    "examples/starter/preview.png": "debe8ba7f3afae5e356e7a5a3424657b19c956627e2bdd2c27bf73f48a4c36f2",
+    "examples/tournament/reactions/welcome.webm": "a0b1fe9b250f44b45aaf81c5d7ff9d70fecfaedeb2cf4bb5dca4b234a9d6b2ea",
+    "examples/tournament/reactions/rethink.webm": "629ac6d87a5247af48b770765b23b5e443e0edfc8e6464e406cd941122951e4a",
+    "examples/tournament/reactions/break.webm": "1bbc581efa75b656e1eb91dcf54e2b9b45e1b129e67322b183864163c85882a7",
+    "examples/tournament/piphound-emblem.png": "ca1b11d9d13aa1f4ef008968d013028294bdeb06e69b76f1a25ddbc6a19b8c6d",
+    "examples/tournament/piphound-stinger-deluxe.webm": "df39f82ed3e49626367054ee4fbb878e83b189df97a7dd927fff5a4f9fa9a169",
+    "examples/tournament/audio/intermission.ogg": "60204184ae7a478ad37a207d02ada2e35d9c4359de86ac41fb11b5f86d00e285",
+    "examples/tournament/audio/stinger.wav": "557ac41221492c1cd8943f15a5d2748f4976740a2921a5cb44df090c3b1b7b30",
+    "examples/tournament/audio/alert.wav": "edd78a50aeefbd742b075d10556e7a2130c3b2f005a3c7273e412188315e8d91",
     "examples/tournament/piphound-stinger.webm": "d3a1d5d9fecb31b3be279de8d30e41640723488ff81f1c062b63500b14d18b49",
     "obs_director/template_data/assets/background-dark.png": "54e78c9bf5eb37d59ea068c9ed598bd433ce61ec9129831fd4cf84080d5a5db9",
     "examples/funded-desk/presenter.png": "1c17047ec2118451e7a21b6a474be049d8dc6f48e749bafeaafc007a883dfce9",
