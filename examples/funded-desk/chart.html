@@ -1,0 +1,20 @@
+<!doctype html><html><meta charset="utf-8"><title>Funded Desk — synthetic chart</title><style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111111;color:#f5f1eb;font-family:Arial,sans-serif}
+header{height:92px;padding:23px 28px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #3b3428}
+.name{font:30px Georgia,serif}.sub{font:12px Arial;letter-spacing:2px;color:#cbb994;margin-top:7px}.quote{font:30px Consolas,monospace;text-align:right}.quote small{font:11px Arial;color:#cbb994;display:block;margin-top:6px}
+canvas{display:block;width:100%;height:calc(100% - 140px)}footer{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:#1d1c19;color:#d3c5aa;font:12px Consolas,monospace}
+.tag{color:#f0c970;border:1px solid #776344;padding:6px 10px}
+</style><header><div><div class="name">The market table</div><div class="sub">SYNTHETIC FUTURES · 1 MINUTE · DEMONSTRATION</div></div><div class="quote" id="quote">21,482.25<small>SIMULATED PRICE · NO MARKET FEED</small></div></header><canvas id="chart"></canvas><footer><span class="tag">OBS DIRECTOR / CHART CAM</span><span id="clock"></span><span>WAIT FOR CONTEXT → DEFINE RISK → REVIEW</span></footer><script>
+const canvas=document.getElementById('chart'),ctx=canvas.getContext('2d'),start=performance.now();let w,h;
+function size(){w=canvas.width=canvas.clientWidth;h=canvas.height=canvas.clientHeight}size();addEventListener('resize',size);
+function draw(now){let t=(now-start)/1000;ctx.clearRect(0,0,w,h);let left=40,right=w-108,top=30,bottom=h-65;let span=right-left,cy=(top+bottom)/2;
+ctx.lineWidth=1;ctx.font='12px Consolas';ctx.textAlign='left';
+for(let i=0;i<7;i++){let y=top+i*(bottom-top)/6;ctx.strokeStyle='#272620';ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();ctx.fillStyle='#988e7b';ctx.fillText((21520-i*12.5).toFixed(2),right+15,y+4)}
+for(let i=0;i<8;i++){let x=left+i*span/7;ctx.strokeStyle='#22221e';ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke();ctx.fillStyle='#766f62';ctx.fillText(String(Math.floor((570+i*5)/60)).padStart(2,'0')+':'+String((570+i*5)%60).padStart(2,'0'),x,bottom+35)}
+let map=v=>top+(21520-(21480+v))*(bottom-top)/75;let level=map(6);ctx.fillStyle='#bd852e16';ctx.fillRect(left,level-18,span,36);ctx.setLineDash([7,5]);ctx.strokeStyle='#bd852e';ctx.beginPath();ctx.moveTo(left,level);ctx.lineTo(right,level);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#dfbb70';ctx.fillText('REFERENCE ZONE',left+12,level-25);
+const n=64,dx=span/n;let previous=-22;
+for(let i=0;i<n;i++){let close=-22+i*.62+Math.sin(i*.42)*9+Math.sin(i*1.29)*3+(i===n-1?Math.sin(t*1.7)*3:0);let open=previous,hi=Math.max(open,close)+2+Math.abs(Math.sin(i*2.3))*3,lo=Math.min(open,close)-2-Math.abs(Math.cos(i*.8))*3;let x=left+i*dx+dx/2;let up=close>=open;ctx.strokeStyle=up?'#dbc087':'#8d908b';ctx.fillStyle=up?'#dbc087':'#555d59';ctx.beginPath();ctx.moveTo(x,map(hi));ctx.lineTo(x,map(lo));ctx.stroke();ctx.fillRect(x-dx*.32,Math.min(map(open),map(close)),dx*.64,Math.max(2,Math.abs(map(open)-map(close))));previous=close}
+let py=map(previous);ctx.setLineDash([2,4]);ctx.strokeStyle='#d8be84';ctx.beginPath();ctx.moveTo(left,py);ctx.lineTo(right,py);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#e3c985';ctx.fillRect(right+3,py-14,96,28);ctx.fillStyle='#111';ctx.fillText((21480+previous).toFixed(2),right+10,py+5);
+document.getElementById('quote').innerHTML=(21480+previous).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'<small>SIMULATED PRICE · NO MARKET FEED</small>';
+document.getElementById('clock').textContent='DEMO CLOCK '+String(Math.floor(t/60)).padStart(2,'0')+':'+String(Math.floor(t)%60).padStart(2,'0');requestAnimationFrame(draw)}requestAnimationFrame(draw);
+</script></html>

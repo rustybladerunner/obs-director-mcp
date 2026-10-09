@@ -1,0 +1,118 @@
+{
+  "schema": "obs.layout.v1",
+  "scene_name": "Funded Desk Dark",
+  "canvas": {
+    "width": 1920,
+    "height": 1080
+  },
+  "assets": {
+    "background": "assets/background-dark.png",
+    "frame": "assets/frame.png"
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "image",
+      "asset": "background",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "id": "top-rule",
+      "type": "color",
+      "color": "#BD852EFF",
+      "rect": {
+        "x": 40,
+        "y": 80,
+        "width": 1840,
+        "height": 4
+      }
+    },
+    {
+      "id": "table-mat",
+      "type": "color",
+      "color": "#111111FF",
+      "rect": {
+        "x": 32,
+        "y": 172,
+        "width": 1312,
+        "height": 745
+      }
+    },
+    {
+      "id": "chart",
+      "type": "existing",
+      "source_name": "",
+      "rect": {
+        "x": 40,
+        "y": 180,
+        "width": 1296,
+        "height": 729
+      },
+      "border": {
+        "width": 3,
+        "color": "#BD852EFF"
+      }
+    },
+    {
+      "id": "host",
+      "type": "existing",
+      "source_name": "",
+      "rect": {
+        "x": 1416,
+        "y": 180,
+        "width": 464,
+        "height": 464
+      },
+      "border": {
+        "width": 3,
+        "color": "#BD852EFF"
+      }
+    },
+    {
+      "id": "host-b",
+      "type": "existing",
+      "source_name": "",
+      "rect": {
+        "x": 1416,
+        "y": 668,
+        "width": 464,
+        "height": 261
+      },
+      "border": {
+        "width": 3,
+        "color": "#BD852EFF"
+      }
+    },
+    {
+      "id": "status",
+      "type": "existing",
+      "source_name": "",
+      "rect": {
+        "x": 40,
+        "y": 944,
+        "width": 1296,
+        "height": 96
+      },
+      "border": {
+        "width": 3,
+        "color": "#BD852EFF"
+      }
+    },
+    {
+      "id": "frame",
+      "type": "image",
+      "asset": "frame",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 1920,
+        "height": 1080
+      }
+    }
+  ]
+}

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "obs-director-mcp"
-version = "0.1.0a1"
+version = "0.2.0a1"
 description = "Local OBS controls, capture evidence, and deterministic director cues over MCP"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -22,6 +22,10 @@ classifiers = [
 
 [project.scripts]
 obs-director-mcp = "obs_director.server:main"
+obs-director-template = "obs_director.templates:main"
+
+[tool.setuptools.package-data]
+obs_director = ["template_data/*.json", "template_data/assets/*.png", "template_data/*/*.json", "template_data/*/*.md"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -57,6 +57,7 @@ This table records review choices. It does not reproduce dictionary definitions 
 | License, commands, code, schemas, environment names, fixed UI text | Preserved as contracts | These strings are not ordinary prose for replacement. |
 | `docs/DEMO.md` | Written by a separate contributor | This review compared its interfaces with the README; it does not certify that document. |
 | Other documents, generated files, and future release notes | Not reviewed | No repository-wide compliance statement applies. |
+| Layout, template, artwork, and stream-demo additions in 0.2.0a1 | Not included in this original Issue 9 review | These additions use short instructions, but have no formal STE compliance claim. |
 
 ## Requirement-preservation review
 

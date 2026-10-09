@@ -1,0 +1,36 @@
+{
+  "schema": "obs.template-catalog.v1",
+  "templates": [
+    {
+      "name": "funded-desk",
+      "title": "Funded Desk",
+      "description": "An original creator desk in light or dark colors, with a large chart, square presenter portrait, guest or replay seat, and gold accents.",
+      "themes": ["light", "dark"],
+      "bindings": [
+        {
+          "key": "CHART",
+          "layer_id": "chart",
+          "description": "Existing central chart or market-board input"
+        },
+        {
+          "key": "HOST",
+          "layer_id": "host",
+          "description": "Existing primary presenter input; square portrait area"
+        },
+        {
+          "key": "HOST_B",
+          "layer_id": "host-b",
+          "description": "Existing guest or replay input; 16:9 area"
+        },
+        {
+          "key": "STATUS",
+          "layer_id": "status",
+          "description": "Existing market context or status input"
+        }
+      ],
+      "references": [
+        "https://tradefunded.com/"
+      ]
+    }
+  ]
+}

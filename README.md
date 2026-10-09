@@ -18,6 +18,8 @@ Package-registry publication is not part of this alpha.
 | --- | --- |
 | Scenes | Read scene names. Create scenes. Select the program scene or the preview scene. |
 | Sources | Add inputs. Change settings, visibility, position, crop, and scale. |
+| Layouts | Preview and apply a complete recipe with existing inputs, local images, colors, borders, and item order. Repeated application reuses matching items. |
+| Templates | Copy the editable light or dark Funded Desk template, original artwork, and image prompts into a new local folder. |
 | Audio | Set the mute state and volume. |
 | Filters | Read filter names. Enable filters. Change settings of existing filters. |
 | Media | Play, pause, stop, start again, and seek. Next/previous commands have limited result verification. |
@@ -35,6 +37,23 @@ Output start/stop commands need `OBS_MCP_ALLOW_OUTPUT_CONTROL=1` in the local en
 The server does not start a stream at startup. Cues cannot start a stream.
 
 ## Quick start
+
+For the copyable layout, see [Templates](docs/TEMPLATES.md). The `funded-desk`
+template uses an original ivory, black, and gold theme informed by TradeFunded's
+visual style. It includes no brand logo and has no affiliation with TradeFunded.
+Templates need explicit bindings to your existing OBS inputs before application.
+`obs_preview_layout` checks the complete recipe and OBS state before any changes.
+`obs_apply_layout` uses a dry run by default and never selects the program scene
+or starts an output. Layout changes are verified, but are not atomic: a failure
+can leave completed changes in place. The receipt identifies partial progress.
+
+The [Funded Desk stream demo](docs/STREAM-DEMO.md) exercises the template with
+PipHound, synthetic charts, and a loopback-only RTMP receiver. It requires an
+explicit `--execute` command and restores the original OBS selection afterward.
+Choose a framed or transparent PipHound presenter. The demo also exercises signed
+[P&L displays](docs/PNL.md) and [audience alerts](docs/AUDIENCE.md).
+The audience adapter accepts synthetic or caller-supplied projections. Twitch and
+YouTube authentication and event ingestion are separate work, not included here.
 
 Python 3.11 or later and OBS WebSocket v5 are necessary.
 Session recording also uses the recording-directory requests from WebSocket 5.3.

@@ -6,13 +6,16 @@ from .capture import CaptureService
 from .controls import ProductionService
 from .cues import CueService
 from .events import EventService
+from .layouts import LayoutService
+from .templates import list_templates, get_template
 
 
-def create_server(production=None, capture=None, cues=None, events=None) -> FastMCP:
+def create_server(production=None, capture=None, cues=None, events=None, layouts=None) -> FastMCP:
     production = production or ProductionService()
     capture = capture or CaptureService()
     cues = cues or CueService(production)
     events = events or EventService(cues)
+    layouts = layouts or LayoutService(production)
     server = FastMCP("OBS Director", instructions=(
         "Read capabilities and OBS state first. Tools that change OBS use dry runs by default. "
         "If recording or streaming is active, set allow_live=true for production changes. "
@@ -52,6 +55,10 @@ def create_server(production=None, capture=None, cues=None, events=None) -> Fast
         (cues.run_cue, "obs_run_cue", write),
         (events.preview_event, "obs_preview_event", read),
         (events.dispatch_event, "obs_dispatch_event", write),
+        (layouts.preview_layout, "obs_preview_layout", read),
+        (layouts.apply_layout, "obs_apply_layout", write),
+        (list_templates, "obs_list_templates", read),
+        (get_template, "obs_get_template", read),
     ]
     for handler, name, annotations in definitions:
         server.add_tool(handler, name=name, annotations=annotations)

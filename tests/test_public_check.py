@@ -112,6 +112,20 @@ class PublicCheckTests(unittest.TestCase):
         self.assertEqual({f.path for f in findings if f.category == "tree/media_artifact"},
                          {"recording.mkv", "disguised.data"})
 
+    def test_reviewed_art_requires_exact_path_and_bytes(self):
+        root = MODULE_PATH.parents[1]
+        for name in CHECK.REVIEWED_ASSETS:
+            source = root / "src" / name if name.startswith("obs_director/") else root / name
+            data = source.read_bytes()
+            for prefix in (("", "src/") if name.startswith("obs_director/") else ("",)):
+                self.assertEqual(CHECK.scan_blob(prefix + name, data), [])
+                self.assertTrue(CHECK.scan_blob(prefix + name, data + b"changed"))
+            self.assertTrue(CHECK.scan_blob("captures/" + name, data))
+            if name.startswith("examples/"):
+                self.assertTrue(CHECK.scan_blob("src/" + name, data))
+            self.assertTrue(CHECK.scan_blob(name.upper(), data))
+            self.assertTrue(CHECK.scan_blob(name, data, forbid_text=["background", "frame", "presenter"]))
+
     def test_binary_and_oversized_source_fail_closed(self):
         self.write("binary.data", b"\x00\x01\xff")
         self.write("huge.txt", b"a" * (CHECK.MAX_BYTES + 1))

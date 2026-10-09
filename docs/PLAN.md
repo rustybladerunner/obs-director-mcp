@@ -30,3 +30,31 @@ build request; the current maintainer instruction authorizes this GitHub release
 Release evidence must distinguish synthetic tests, MCP protocol checks, real OBS
 state checks, rendered media inspection, and continuous producer operation.
 Passing one category does not establish the others.
+
+## Current upgrade: 0.2.0a1
+
+The local upgrade adds complete layout recipes, image and color layers, borders,
+and repeatable item order. Funded Desk is one copyable template with light and
+dark themes. Original image prompts and reviewed artwork are bundled.
+The source demo supplies framed and transparent PipHound presenter options.
+
+The demo includes a tournament-style scenario strip, declared sample P&L, and
+temporary audience alerts. [Tournament references](TOURNAMENT-REFERENCES.md)
+record inspected EPT and WSOP frames. No broadcaster assets are included.
+[Audience](AUDIENCE.md) and [P&L](PNL.md) modules are pure local adapters.
+Provider authentication, event ingestion and real account data remain outside
+this version. The portrait moves through CSS; it is not a speaking avatar.
+
+Local acceptance on 2026-10-08: 294 unit tests passed. The MCP subprocess exposed
+31 tools. Disconnected and live read-only smoke checks passed. Isolated light
+and dark OBS rehearsals sent approximately 25 seconds to a loopback receiver.
+They exercised layout application, zero-write reapplication, chart/replay cuts,
+gain/loss displays, alert display/hide, duplicate suppression and wrong-scene
+rejection. Both restored the original profile, collection, scene and video.
+Rendered OBS screenshots were inspected, including the framed name-plate fix.
+Received files contain 1280 by 720 H.264 video and stereo AAC test-tone audio.
+This is local rehearsal evidence, not public-platform streaming acceptance.
+
+The upgrade is prepared locally. Publication of this new version remains a
+separate maintainer action. The earlier alpha authorization above records the
+existing release, not a claim that this upgrade has been published.

@@ -22,6 +22,7 @@ EXPECTED = {
     "obs_media_seek", "obs_output_control", "obs_capture_health", "obs_start_recording",
     "obs_stop_recording", "obs_capture_sessions", "obs_validate_cue", "obs_run_cue",
     "obs_preview_event", "obs_dispatch_event",
+    "obs_preview_layout", "obs_apply_layout", "obs_list_templates", "obs_get_template",
 }
 
 
@@ -81,6 +82,10 @@ async def smoke(live=False, wheel=None, installed=False, python=None):
                     if "allow_live" in props:
                         assert props["allow_live"].get("default") is False, tool.name
                 status = await session.call_tool("obs_status")
+                catalog = await session.call_tool("obs_list_templates")
+                assert not catalog.isError, "Offline template catalog failed"
+                template = await session.call_tool("obs_get_template", {"name": "funded-desk"})
+                assert not template.isError, "Packaged template could not be read"
                 rendered = status.model_dump_json()
                 assert "not-a-real-secret" not in rendered
                 if live:

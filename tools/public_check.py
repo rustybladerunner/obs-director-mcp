@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -14,6 +15,14 @@ from typing import Iterable
 
 
 MAX_BYTES = 4 * 1024 * 1024
+# Original generated artwork inspected for this release. No directory-wide media exemption.
+# Both source-tree and installed-wheel paths must match these exact bytes.
+REVIEWED_ASSETS = {
+    "obs_director/template_data/assets/background-dark.png": "54e78c9bf5eb37d59ea068c9ed598bd433ce61ec9129831fd4cf84080d5a5db9",
+    "examples/funded-desk/presenter.png": "1c17047ec2118451e7a21b6a474be049d8dc6f48e749bafeaafc007a883dfce9",
+    "obs_director/template_data/assets/background.png": "9e964d04e951d9e23d1a4693209888aa3495ea992666a87490f889055002e929",
+    "obs_director/template_data/assets/frame.png": "905e48696a7b03a75f68b7ec28a67970dd160e35dd5b52a425dd5b64cb73352b",
+}
 EXCLUDED_DIRS = frozenset({
     ".git", ".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache",
     ".ruff_cache", ".cache", ".tmp", ".tox", ".nox", "node_modules", "build", "dist",
@@ -124,6 +133,10 @@ def scan_blob(relative: str, data: bytes, *, tracked: bool = False,
         findings.add(Finding(relative, 1, origin + "/private_text"))
     if len(data) > MAX_BYTES:
         findings.add(Finding(relative, 1, origin + "/oversized_unchecked_file"))
+        return sorted(findings)
+    asset_name = relative[4:] if relative.startswith("src/obs_director/") else relative
+    if REVIEWED_ASSETS.get(asset_name) == hashlib.sha256(data).hexdigest():
+        findings.discard(Finding(relative, 1, origin + "/media_artifact"))
         return sorted(findings)
     media_magic = (data.startswith((b"\x89PNG\r\n", b"\xff\xd8\xff", b"GIF8", b"\x1aE\xdf\xa3", b"OggS", b"ID3"))
                    or (data.startswith(b"RIFF") and data[8:12] in {b"WAVE", b"WEBP", b"AVI "})
