@@ -26,6 +26,24 @@ the snapshot and a hash manifest. It makes no OBS or network connection.
 To display caller-supplied paper data, use `--snapshot path/to/snapshot.json`
 instead of `--demo`. Rendering does not authenticate the data source.
 
+Add `--motion` for the [original motion loops](MOTION.md): Fibonacci drawings
+during Starting Soon, poker geometry during Break, and drifting market forms
+during Ending. The showcase uses near-black panels and warm gold borders.
+The optional motion is decorative and does not animate the supplied data.
+
+Add `--demo-roster` together with `--demo` for a six-bot leaderboard example.
+The fictional roster includes a tie, a loss and an unavailable result. The
+`standings.html` page shows the ranked table. This option cannot replace a
+caller-supplied snapshot. The default two-seat demo remains available.
+
+![Six fictional bots with tied ranks and a missing result](../examples/tournament/leaderboard-preview.png)
+
+Demo table and replay scenes use 64 deterministic synthetic candles. Entry,
+stop and target levels come from the featured demo seat's declared trade.
+These are illustrations, not recorded executions or market history. Paper
+snapshots show a chart-unavailable state until a chart input is supplied.
+PipHound remains the intermission presenter when the demo roster changes.
+
 ## Rehearse through OBS
 
 OBS must be open, its WebSocket server must be enabled, and all outputs must be

@@ -88,6 +88,12 @@ and listen to the mixed output before claiming audible acceptance.
 
 ## Prove the states
 
+For ambient motion, use the [original loop pack](../../../docs/MOTION.md) or
+create local art under the same contract. Keep decorative candles and ratios
+separate from market data. Reserve readable areas for copy, identities and P&L.
+Honor reduced motion. Verify a complete cycle, its wrap and a snapshot rerender.
+Tournament structure does not prescribe a green palette; follow the show brief.
+
 Exercise opening, a featured decision, standings, break, replay, ending and
 recovery where the brief calls for them. Include gain/loss/flat, long participant names,
 missing and stale feeds, tied scores, a late correction, and an alert during a

@@ -20,6 +20,9 @@ The default `--template` value is `starter`. An explicit `--template starter` pr
 
 The starter fixture identifies its participants as HOST and GUEST. Its values are synthetic, and its timestamps record creation time.
 
+Add `--demo-roster` for six fictional bots with a tie, loss and missing result.
+Add `--motion` for optional gold intermission ornaments. The default stays still.
+
 For your own data, replace `--demo` with `--snapshot path/to/snapshot.json`. The renderer preserves supplied identities and timestamps; template selection does not anonymize data.
 
 Rendering creates local files only. It does not open OBS, start a server, connect a feed, or start an output.
@@ -62,7 +65,9 @@ Keep mode, currency, fees, source time, and unavailable-data labels visible. Rea
 
 Net P&L equals realized plus unrealized minus fees. Equal net results share a rank. Missing or stale values remain unranked.
 
-The chart and replay are illustrative. The renderer has no market-series input or recorded-execution replay connection.
+The chart and replay use 64 illustrative candles with declared entry, stop and
+target levels. The renderer has no market-series input or recorded-execution
+replay connection. Caller-supplied paper data keeps the chart unavailable.
 
 ## Code and verification boundary
 

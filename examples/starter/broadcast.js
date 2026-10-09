@@ -40,7 +40,49 @@ function formatMoney(value, signed = true) {
   return (signed && value > 0 ? "+" : "") + (value / 100).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
-if (typeof module !== "undefined" && module.exports) module.exports = {rankRows, formatMoney, parseUTC};
+
+function buildCandleChart(snapshot, rows = snapshot.participants) {
+  if (snapshot.mode !== "demo") return {available: false, reason: "Waiting for supplied OHLC data"};
+  const validTrade = row => row.trade && ["long", "short", "flat"].includes(row.trade.direction) &&
+    ["entry", "stop", "target"].every(key => typeof row.trade[key] === "number" && Number.isFinite(row.trade[key]) && Math.abs(row.trade[key]) <= 1e9);
+  const featured = rows.find(row => row.eligibility === "ranked" && validTrade(row)) || rows.find(validTrade);
+  if (!featured) return {available: false, reason: "No declared trade levels · OHLC data unavailable"};
+  const trade = featured.trade;
+  const span = Math.max(Math.abs(trade.target - trade.stop), Math.abs(trade.entry - trade.stop), Math.abs(trade.entry - trade.target), Math.abs(trade.entry) * .003, 1e-6);
+  // Authored, dimensionless fixture: no timestamps, random prices or market feed.
+  const closes = [-.18,-.12,-.08,-.10,-.03,.02,-.01,.05,.09,.04,0,-.08,-.13,-.05,.01,.07,
+    .12,.10,.16,.20,.14,.08,.11,.18,.24,.19,.13,.09,.03,-.04,-.10,-.16,
+    -.11,-.07,.02,.09,.14,.20,.16,.22,.27,.19,.15,.20,.30,.34,.29,.23,
+    .26,.32,.38,.34,.31,.25,.19,.22,.30,.35,.39,.32,.28,.36,.41,.37];
+  const candles = closes.map((close, index) => {
+    const open = index ? closes[index - 1] + ((index % 3) - 1) * .008 : -.21;
+    return {open: trade.entry + open * span, close: trade.entry + close * span,
+      high: trade.entry + (Math.max(open, close) + .032 + (index % 4) * .009) * span,
+      low: trade.entry + (Math.min(open, close) - .030 - (index % 5) * .007) * span};
+  });
+  const values = candles.flatMap(candle => [candle.low, candle.high]).concat([trade.entry, trade.stop, trade.target]);
+  const lower = Math.min(...values), upper = Math.max(...values);
+  const padding = Math.max((upper - lower) * .12, span * .06);
+  const minimum = lower - padding, maximum = upper + padding;
+  const plot = {left: 150, right: 1040, top: 24, bottom: 282};
+  const y = value => plot.bottom - (value - minimum) / (maximum - minimum) * (plot.bottom - plot.top);
+  const step = (plot.right - plot.left) / candles.length;
+  const bars = candles.map((candle, index) => ({...candle, x: plot.left + (index + .5) * step,
+    openY: y(candle.open), closeY: y(candle.close), highY: y(candle.high), lowY: y(candle.low), width: step * .62}));
+  const levels = ["entry", "stop", "target"].map(kind => ({kind, value: trade[kind], y: y(trade[kind]), labelY: y(trade[kind])})).sort((a,b) => a.y - b.y);
+  // Separate labels, not price lines. Leaders retain each line's exact price.
+  levels.forEach((level, index) => { level.labelY = Math.max(level.labelY, index ? levels[index - 1].labelY + 26 : plot.top); });
+  if (levels.at(-1).labelY > plot.bottom) {
+    levels.at(-1).labelY = plot.bottom;
+    for (let index = levels.length - 2; index >= 0; index--) levels[index].labelY = Math.min(levels[index].labelY, levels[index + 1].labelY - 26);
+  }
+  const ticks = Array.from({length: 5}, (_, index) => ({value: maximum - (maximum - minimum) * index / 4,
+    y: plot.top + (plot.bottom - plot.top) * index / 4}));
+  return {available: true, featured: {id: featured.id, name: featured.name, instrument: trade.instrument,
+    direction: trade.direction, eligibility: featured.eligibility || "declared"}, plot, minimum, maximum, bars, levels, ticks};
+}
+
+if (typeof module !== "undefined" && module.exports) module.exports = {rankRows, formatMoney, parseUTC, buildCandleChart};
 
 if (typeof document !== "undefined") {
   const bundle = JSON.parse(document.getElementById("tournament-data").textContent);
@@ -92,33 +134,50 @@ if (typeof document !== "undefined") {
     node("span", "", demonstration ? "ILLUSTRATIVE VALUES · NO REAL TRADES" : "SUPPLIED PAPER VALUES · UNVERIFIED SOURCE", footer);
     node("span", "", "AS OF " + snapshot.as_of.replace("T", " ").replace("Z", " UTC"), footer);
   }
-  function chart(replay = false) {
+  function chart(result, replay = false) {
     const panel = node("section", "chart-panel" + (replay ? " replay-panel" : ""), null, stage);
     const heading = node("div", "chart-heading", null, panel);
-    node("strong", "", "THE SHARED BOARD", heading);
-    node("span", "", demonstration ? "ILLUSTRATIVE · POINTS" : "CHART UNAVAILABLE", heading);
-    if (!demonstration) {
-      node("div", "chart-empty", "Waiting for a supplied chart", panel);
+    const data = buildCandleChart(snapshot, result.rows);
+    const identity = data.available ? data.featured.name + " · " + data.featured.instrument + " · " + data.featured.direction.toUpperCase() +
+      (["stale", "missing"].includes(data.featured.eligibility) ? " · " + data.featured.eligibility.toUpperCase() : "") : "THE SHARED BOARD";
+    node("strong", "", identity, heading);
+    node("span", "", data.available ? "DEMO OHLC · DECLARED LEVELS" : "CHART UNAVAILABLE", heading);
+    if (!data.available) {
+      node("div", "chart-empty", data.reason, panel);
       return;
     }
-    const svg = svgNode("svg", {viewBox: "0 0 1400 338", class: "chart", role: "img", "aria-label": "Illustrative synthetic chart; not market data"}, panel);
-    const defs = svgNode("defs", {}, svg);
-    const gradient = svgNode("linearGradient", {id: "chart-fill", x1: "0", y1: "0", x2: "0", y2: "1"}, defs);
-    svgNode("stop", {offset: "0%", "stop-color": "#bdc5d0", "stop-opacity": ".24"}, gradient);
-    svgNode("stop", {offset: "100%", "stop-color": "#bdc5d0", "stop-opacity": "0"}, gradient);
-    [32,96,160,224,288].forEach((y, index) => {
-      svgNode("line", {x1: 0, x2: 1308, y1: y, y2: y, class: "chart-grid"}, svg);
-      svgNode("text", {x: 1324, y: y + 5, class: "chart-axis"}, svg, (5148 - index * 8).toFixed(2));
+    const svg = svgNode("svg", {viewBox: "0 0 1400 338", class: "chart", role: "img",
+      "aria-label": "64 illustrative synthetic OHLC candles with declared levels for " + data.featured.name + "; not market data"}, panel);
+    const colors = {up: "var(--gold, #d9b56c)", down: "#929ba9", entry: "#eee6d5", stop: "#aa9297", target: "var(--gold, #d9b56c)"};
+    const number = value => Math.abs(value) >= 1e7 || (value !== 0 && Math.abs(value) < .001) ? value.toExponential(5) : value.toLocaleString("en-US", {maximumSignificantDigits: 7});
+    data.ticks.forEach(tick => {
+      svgNode("line", {x1: data.plot.left, x2: data.plot.right, y1: tick.y, y2: tick.y, class: "chart-grid"}, svg);
+      svgNode("text", {x: 132, y: tick.y + 5, class: "chart-axis", "text-anchor": "end"}, svg, number(tick.value));
     });
-    [0,216,432,648,864,1080,1296].forEach(x => svgNode("line", {x1: x, x2: x, y1: 22, y2: 288, class: "chart-grid"}, svg));
-    const values = [238,229,243,208,212,221,195,206,172,180,191,153,156,161,124,138,112,147,124,103,124,97,107,74,91,68,80,42,66,61,88,69,83,65,79,54];
-    const points = values.map((y, index) => [16 + index * 36.4, y]);
-    const path = "M " + points.map(([x,y]) => x.toFixed(1) + " " + y).join(" L ");
-    svgNode("path", {d: path + " L 1290 288 L 16 288 Z", class: "chart-area"}, svg);
-    svgNode("path", {d: path, class: "chart-line"}, svg);
-    svgNode("circle", {cx: points.at(-1)[0], cy: points.at(-1)[1], r: 6, fill: "#d6dce4"}, svg);
-    svgNode("text", {x: 0, y: 328, class: "chart-note"}, svg, "STATIC ILLUSTRATION");
-    svgNode("text", {x: 1136, y: 328, class: "chart-note"}, svg, "NOT MARKET DATA");
+    [0,15,31,47,63].forEach(index => {
+      const x = data.bars[index].x;
+      svgNode("line", {x1: x, x2: x, y1: data.plot.top, y2: data.plot.bottom, class: "chart-grid"}, svg);
+      svgNode("text", {x, y: 307, class: "chart-axis", "text-anchor": "middle"}, svg, String(index + 1));
+    });
+    data.bars.forEach(bar => {
+      const color = bar.close >= bar.open ? colors.up : colors.down;
+      svgNode("line", {x1: bar.x, x2: bar.x, y1: bar.highY, y2: bar.lowY, stroke: color, "stroke-width": 1.7}, svg);
+      svgNode("rect", {x: bar.x - bar.width / 2, y: Math.min(bar.openY, bar.closeY), width: bar.width,
+        height: Math.max(1.5, Math.abs(bar.closeY - bar.openY)), fill: color, "fill-opacity": bar.close >= bar.open ? .95 : .38,
+        stroke: color, "stroke-width": 1}, svg);
+    });
+    data.levels.forEach(level => {
+      const color = colors[level.kind];
+      const label = level.kind.toUpperCase() + " " + String(level.value);
+      svgNode("line", {x1: data.plot.left, x2: data.plot.right, y1: level.y, y2: level.y, stroke: color,
+        "stroke-width": 1.4, "stroke-dasharray": level.kind === "entry" ? "7 4" : "3 5", "stroke-opacity": .88}, svg);
+      svgNode("path", {d: "M " + data.plot.right + " " + level.y + " L 1072 " + level.y + " L 1090 " + level.labelY,
+        fill: "none", stroke: color, "stroke-width": 1}, svg);
+      svgNode("rect", {x: 1092, y: level.labelY - 11, width: 306, height: 22, rx: 2, fill: "#121212", stroke: color, "stroke-opacity": .35}, svg);
+      svgNode("text", {x: 1101, y: level.labelY + 5, fill: color, "font-family": "Consolas,monospace", "font-size": Math.min(16, 288 / (label.length * .62))}, svg, label);
+    });
+    svgNode("text", {x: 0, y: 333, class: "chart-note"}, svg, "64 SYNTHETIC BARS · NOT MARKET DATA");
+    svgNode("text", {x: 1398, y: 333, class: "chart-note", "text-anchor": "end"}, svg, "LEVELS IN SUPPLIED POINTS · DECLARED");
   }
   function rankLabel(participant) {
     return participant.rank === null ? "UNRANKED · " + participant.eligibility.toUpperCase() : (participant.tied ? "TIED · " : "") + "RANK " + participant.rank;
@@ -156,15 +215,15 @@ if (typeof document !== "undefined") {
     }
   }
   function table(result) {
-    chart();
+    chart(result);
     result.rows.slice(0,2).forEach((participant, index) => card(participant, index));
     const divider = node("div", "versus", "VS", stage);
     divider.setAttribute("aria-label", "Two participants in the same session");
   }
   function standings(result) {
     const title = node("section", "standings-head", null, stage);
-    node("h2", "", result.rows.length === 2 ? "Head to head." : "The standings.", title);
-    node("p", "", "SESSION RESULTS", title);
+    node("h2", "", "Leaderboard.", title);
+    node("p", "", "SESSION NET · " + snapshot.currency + " · AFTER FEES · " + (demonstration ? "DEMO" : "PAPER"), title);
     if (result.rows.length === 2) {
       result.standings.forEach((participant, index) => card(participant, index, true));
       node("div", "standings-note", "NET = REALIZED + UNREALIZED − FEES · EQUAL RESULTS SHARE A RANK", stage);
@@ -176,20 +235,22 @@ if (typeof document !== "undefined") {
     const body = node("tbody", "", null, tableElement);
     result.standings.forEach(participant => {
       const row = node("tr", "", null, body);
-      node("td", "", participant.rank === null ? "—" : (participant.tied ? "=" : "") + participant.rank, row);
+      const place = node("td", "", participant.rank === null ? "—" : (participant.tied ? "=" : "") + participant.rank, row);
+      if (participant.rank === 1) { place.style.color = "var(--gold, #d9b56c)"; place.style.fontWeight = "700"; }
       const identity = node("td", "row-name", null, row);
       node("span", "", participant.name, identity);
-      node("small", "", participant.rank === null ? participant.eligibility.toUpperCase() : participant.tied ? "TIED RANK " + participant.rank : participant.status.toUpperCase(), identity);
+      node("small", "", participant.status.toUpperCase() + " · " + (participant.rank === null ? participant.eligibility.toUpperCase() : participant.tied ? "TIED RANK " + participant.rank : "RANK " + participant.rank), identity);
+      node("small", "", participant.observed_at === null ? "OBSERVED UNKNOWN" : "OBSERVED " + participant.observed_at.replace("T", " ").replace("Z", " UTC"), identity);
       ["realized_minor", "unrealized_minor", "fees_minor"].forEach(key => node("td", "", participant.rank === null ? "—" : formatMoney(participant[key], key !== "fees_minor"), row));
       node("td", "net" + (participant.rank === null ? " unavailable" : participant.net_minor < 0 ? " negative" : ""), participant.rank === null ? participant.eligibility.toUpperCase() : formatMoney(participant.net_minor), row);
     });
     node("div", "standings-note", "NET = REALIZED + UNREALIZED − FEES · EQUAL RESULTS SHARE A RANK (1, 1, 3)", stage);
   }
-  function replay() {
+  function replay(result) {
     const title = node("section", "replay-title", null, stage);
     node("h2", "", "The moment, revisited.", title);
     node("div", "replay-mark", "ILLUSTRATIVE REPLAY", title);
-    chart(true);
+    chart(result, true);
     const caption = node("div", "replay-caption", null, stage);
     node("span", "", "NOT A RECORDED EXECUTION", caption);
     node("span", "", "REFERENCE " + snapshot.as_of.replace("T", " ").replace("Z", " UTC"), caption);
@@ -206,7 +267,7 @@ if (typeof document !== "undefined") {
     node("div", "eyebrow", view === "starting-soon" ? "TAKE YOUR SEAT" : view === "break" ? "BACK AT THE TABLE SOON" : "UNTIL NEXT SESSION", copy);
     const title = view === "starting-soon" ? "The table\nis waiting." : view === "break" ? "A moment\naway." : "That's\nthe session.";
     node("h2", "", title, copy);
-    node("p", "subhead", view === "starting-soon" ? "Starting soon. Two seats. One shared board." : view === "break" ? "Taking a short break. Stay with us." : "Thanks for being part of the session.", copy);
+    node("p", "subhead", view === "starting-soon" ? "Starting soon. " + snapshot.participants.length + " seats. One shared board." : view === "break" ? "Taking a short break. Stay with us." : "Thanks for being part of the session.", copy);
     node("div", "intermission-rule", null, copy);
     if (view === "ending") {
       const resultBox = node("div", "ending-result", null, copy);
@@ -251,7 +312,7 @@ if (typeof document !== "undefined") {
       header(result);
       if (view === "table") table(result);
       else if (view === "standings") standings(result);
-      else if (view === "replay") replay();
+      else if (view === "replay") replay(result);
       else intermission(result);
       lastState = state;
     }

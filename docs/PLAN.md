@@ -31,7 +31,42 @@ Release evidence must distinguish synthetic tests, MCP protocol checks, real OBS
 state checks, rendered media inspection, and continuous producer operation.
 Passing one category does not establish the others.
 
-## Current upgrade: 0.2.0a3
+## Current upgrade: 0.2.0a4
+
+Restore the near-black and warm-gold showcase palette. Add three original
+decorative Browser Source loops: Fibonacci construction, floating market forms,
+and poker chip/card geometry. The optional `--motion` renderer flag adds them
+only to Starting Soon, Break and Ending. Preserve data content and safe text
+areas. Verify complete cycles, their wrap and motion retention after refresh.
+Replace the illustrative line chart with deterministic candles and labeled
+entry, stop and target levels. Keep caller-supplied paper charts unavailable
+until a real chart input exists. Example levels are not private method data.
+
+The future continuous PipHound bot-tournament concept is recorded in
+[the motion plan](MOTION.md#continuous-tournament-direction). The current scope
+is presentation and local rehearsal, not a running trading tournament service.
+
+Local acceptance: 455 tests passed. A 96-second standalone rehearsal exercised
+the final three loops. Received-frame inspection covers each complete cycle and
+sampled wrap windows, including Fibonacci ratio lines and candle wicks. A final
+56-second integrated rehearsal covers the six-bot show, three reactions and
+three covered stinger changes. A separate 42-second neutral starter rehearsal
+shows the new candle example. Every rehearsal restored the original OBS state.
+
+A controlled stale-refresh test caught a foreground fade during page rebuild.
+The same text-visibility check failed on the original recording and passed after
+removing the repeated reveal animation. Across the corrected four-second window,
+the minimum bright-text count was 99.963 percent of its median. This is scoped
+rendered evidence, not full-video viewing or listened-audio acceptance.
+
+A separate cinematic opening and original generated theme are in development.
+They are not included in this motion-and-chart release candidate.
+
+## Published milestone: 0.2.0a3
+
+Commit `da9e44c` was pushed to the public repository. All nine GitHub release
+check jobs passed: one build and eight Windows/Linux consumers across Python
+3.11 through 3.14. The local suite passed 425 tests.
 
 The public source now has two entry points: a neutral six-scene starter and the
 PipHound showcase. Custom show packs use the same director and snapshot contract.
@@ -90,8 +125,8 @@ inspection and audio measurements are not a claim of full-video viewing or
 listened-audio acceptance. The larger single-host P&L also passed a separate
 25-second rehearsal with gain/loss and audience-alert states.
 
-This upgrade remains local; the following section records the earlier layout
-milestone and its own validation scope.
+This section records its original local acceptance. Both this milestone and
+the earlier layout milestone below were later published with `da9e44c`.
 
 ## Previous local milestone: 0.2.0a1
 
@@ -117,6 +152,4 @@ Rendered OBS screenshots were inspected, including the framed name-plate fix.
 Received files contain 1280 by 720 H.264 video and stereo AAC test-tone audio.
 This is local rehearsal evidence, not public-platform streaming acceptance.
 
-The upgrade is prepared locally. Publication of this new version remains a
-separate maintainer action. The earlier alpha authorization above records the
-existing release, not a claim that this upgrade has been published.
+The earlier layout milestone was later published with `da9e44c`.

@@ -18,8 +18,9 @@ MAX_BYTES = 4 * 1024 * 1024
 # Original generated artwork inspected for this release. No directory-wide media exemption.
 # Both source-tree and installed-wheel paths must match these exact bytes.
 REVIEWED_ASSETS = {
-    "examples/tournament/preview.png": "6a2115d78a38336097dfcc4c497e4f716e80842c10fc0a30e6277f4fe63d8774",
-    "examples/starter/preview.png": "debe8ba7f3afae5e356e7a5a3424657b19c956627e2bdd2c27bf73f48a4c36f2",
+    "examples/tournament/preview.png": "ec6b74bb1695a35e4906fcbed36e5a581427eccd315440ed301dd6e0aead61eb",
+    "examples/tournament/leaderboard-preview.png": "0b2f209f61b04c300b904bee24c1c3390070da346232a940a6f3927b0402fad6",
+    "examples/starter/preview.png": "bc551b1a11177f42e0b977354a270e458d75c1f39b345d4fad7350418206b85b",
     "examples/tournament/reactions/welcome.webm": "a0b1fe9b250f44b45aaf81c5d7ff9d70fecfaedeb2cf4bb5dca4b234a9d6b2ea",
     "examples/tournament/reactions/rethink.webm": "629ac6d87a5247af48b770765b23b5e443e0edfc8e6464e406cd941122951e4a",
     "examples/tournament/reactions/break.webm": "1bbc581efa75b656e1eb91dcf54e2b9b45e1b129e67322b183864163c85882a7",

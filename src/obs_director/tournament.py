@@ -18,6 +18,7 @@ UTC_TIME = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T(?:[01][0-9]|2[0-3]):[0-5][0-
 SCENES = {"table": "Tournament Table", "standings": "Tournament Standings", "replay": "Tournament Replay",
           "starting-soon": "Tournament Starting Soon", "break": "Tournament Break", "ending": "Tournament Ending"}
 STATIC_FILES = (*(name + ".html" for name in SCENES), "broadcast.css", "broadcast.js")
+MOTION_SCENES = {"starting-soon.html": "fibonacci", "break.html": "table", "ending.html": "market"}
 
 
 class TournamentValidationError(ValueError):
@@ -203,11 +204,14 @@ def _local_path(path):
 
 
 def render_tournament(snapshot: dict, output: Path, *, template_dir: Path | None = None,
-                      portrait_path: Path | None = None, now: datetime | None = None) -> dict:
+                      portrait_path: Path | None = None, motion_dir: Path | None = None,
+                      now: datetime | None = None) -> dict:
     """Write a new editable local scene bundle after full validation.
 
     The default artwork path is source-checkout relative. Installed callers can
-    pass template_dir and portrait_path explicitly. No OBS or network is used.
+    pass template_dir, portrait_path and optional motion_dir explicitly.
+    Motion is decorative and restricted to the three intermission pages.
+    No OBS or network is used.
     """
     clock = _now(now)
     ranked = rank_snapshot(snapshot, now=clock)
@@ -216,6 +220,21 @@ def render_tournament(snapshot: dict, output: Path, *, template_dir: Path | None
         raise TournamentValidationError("Output must be a new directory with an existing parent")
     source = _local_path(template_dir or Path(__file__).resolve().parents[2] / "examples" / "tournament")
     prepared = {}
+    if motion_dir is not None:
+        motion_source = _local_path(motion_dir)
+        for filename in ("motion.js", "motion.css"):
+            path = _local_path(motion_source / filename)
+            if not path.is_file() or path.stat().st_size > 128 * 1024:
+                raise TournamentValidationError("A required local motion asset is missing or too large")
+            with path.open("rb") as stream:
+                data = stream.read(128 * 1024 + 1)
+            if len(data) > 128 * 1024:
+                raise TournamentValidationError("A local motion asset grew beyond its limit")
+            try:
+                data.decode("utf-8")
+            except UnicodeError:
+                raise TournamentValidationError("Motion assets require UTF-8 text") from None
+            prepared[filename] = data
     payload = {"snapshot": ranked["snapshot"], "max_age_seconds": MAX_AGE_SECONDS, "rendered_at": clock.isoformat(),
                "portrait": portrait_path is not None}
     encoded = _safe_script(payload)
@@ -228,6 +247,14 @@ def render_tournament(snapshot: dict, output: Path, *, template_dir: Path | None
             if content.count("__TOURNAMENT_DATA__") != 1:
                 raise TournamentValidationError("HTML template requires exactly one data marker")
             content = content.replace("__TOURNAMENT_DATA__", encoded)
+            if motion_dir is not None and filename in MOTION_SCENES:
+                marker = '<body data-view="' + filename[:-5] + '">'
+                if any(content.count(part) != 1 for part in (marker, "</head>", "</body>")):
+                    raise TournamentValidationError("Motion requires unique body and head markers")
+                content = content.replace(marker, marker[:-1] + ' data-motion-loop="' +
+                    MOTION_SCENES[filename] + '" data-motion-treatment="ambient">')
+                content = content.replace("</head>", '<link rel="stylesheet" href="motion.css"></head>')
+                content = content.replace("</body>", '<script src="motion.js"></script></body>')
         prepared[filename] = content.encode("utf-8")
     if portrait_path is not None:
         portrait = _local_path(portrait_path)

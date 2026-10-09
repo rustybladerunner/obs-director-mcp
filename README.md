@@ -45,6 +45,8 @@ Start with the [neutral six-scene starter](docs/STARTER.md), or choose the
 cards, original artwork, a layered stinger and an [original audio pack](docs/AUDIO.md).
 Optional [PipHound reactions](docs/REACTIONS.md) add transparent puppet clips with
 original barks and captions.
+Optional [motion loops](docs/MOTION.md) add gold Fibonacci drawings, drifting
+candlestick forms and poker geometry to the intermission scenes.
 Both use the same snapshot contract and director. Copy a template into your own
 show folder; keep credentials, account connections and personal data outside Git.
 
