@@ -1,0 +1,15 @@
+:root { color-scheme: dark; background: #09090b; color: #d7b777; font-family: Arial, Helvetica, sans-serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+body { display: grid; place-items: center; }
+#stage { width: min(100vw, 177.777778vh); aspect-ratio: 16 / 9; position: relative; overflow: hidden; }
+#picture { display: block; width: 100%; height: 100%; }
+#controls { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid #79613a; background: #09090bed; border-radius: 5px; font-size: 12px; }
+button { color: #d7b777; background: #171719; border: 1px solid #79613a; border-radius: 3px; padding: 8px 12px; font: inherit; cursor: pointer; white-space: nowrap; }
+button:hover { background: #242426; }
+button:focus-visible { outline: 2px solid #d4ad65; outline-offset: 3px; }
+#status { min-width: 126px; color: #b69a65; }
+[hidden] { display: none !important; }
+noscript { position: fixed; inset: 45% 10% auto; text-align: center; }
+@media (max-width: 560px) { #controls { bottom: 8px; gap: 6px; } #status { display: none; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto; } }

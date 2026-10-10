@@ -225,6 +225,14 @@ If the process restarts or loses recording ownership, examine OBS and stop the r
 OBS cannot compare a recording identifier and stop that recording in one atomic operation.
 Do not make simultaneous manual recording changes while the adapter owns a session.
 
+## Cinematic opening
+
+The source checkout and source archive include an original 24-second
+[PipHound simulation intro](examples/cinematic-intro/README.md). It uses local
+Three.js assets, a dark gold palette, and an optional soundtrack. The original
+score is still pending; the included opening plays silently. See the
+[show setup](docs/SHOW-DEMO.md#cinematic-opening) for OBS instructions.
+
 ## Development and release checks
 
 Run these commands from the source checkout:

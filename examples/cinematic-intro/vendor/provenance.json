@@ -1,0 +1,32 @@
+{
+  "name": "three",
+  "version": "0.186.1",
+  "license": "MIT",
+  "source": "https://registry.npmjs.org/three/-/three-0.186.1.tgz",
+  "npm_integrity": "sha512-blFeqb49wRCSGUGj7gtpfnSGHy2lwDk94RhUmS1c/hTby70kvChbWpkJ4Pm1390LqzzvTmzgXKHPEafJwCb8jA==",
+  "upstream_files_sha256": {
+    "build/three.module.js": "9052042d676cb0fdc1ddfefe193053f34b7ac0513a616fdac4535d49987812ea",
+    "build/three.core.js": "9edde002b066a9a05676a6127f67735b62baf399bdea529f2f7e31657da769e6",
+    "LICENSE": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc",
+    "package.json": "f9c474a27c920b9435353a6235968f4453436bee0444fac7e5fd289c8fa463de"
+  },
+  "bundle": {
+    "file": "three.min.js",
+    "bytes": 743225,
+    "sha256": "88504b03a05226bc40888cdeb02f79408d245d72e389055c1cee19ba4e068e52"
+  },
+  "build": {
+    "tool": "esbuild",
+    "version": "0.28.1",
+    "entry": "export * from \"./build/three.module.js\";",
+    "flags": [
+      "--bundle",
+      "--format=iife",
+      "--global-name=THREE",
+      "--platform=browser",
+      "--target=es2020",
+      "--minify",
+      "--legal-comments=inline"
+    ]
+  }
+}

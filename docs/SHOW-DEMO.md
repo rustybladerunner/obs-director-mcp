@@ -12,6 +12,19 @@ P&L, fees, instrument, direction and entry/stop/target values remain distinct.
 Standings use one session and one currency. Missing and stale entries are
 unranked. See the [snapshot contract](TOURNAMENT.md).
 
+## Cinematic opening
+
+The [24-second opening](../examples/cinematic-intro/README.md) is included in
+the source checkout and source archive. Keep its directory beside the tournament
+assets. Add `examples/cinematic-intro/intro.html` as a local OBS Browser Source
+URL with `?obs=1&silent=1`. Set the source to 1920 by 1080 at 30 frames per second.
+Reload the source to replay it. The final title holds until you select Starting
+Soon. The page does not switch scenes or start an output.
+
+The included Three.js bundle runs locally. The original score is pending;
+missing audio leaves the opening silent. These example assets are not included
+in the server wheel.
+
 ## Render editable scenes
 
 Run from a source checkout. The output parent must exist. The output directory

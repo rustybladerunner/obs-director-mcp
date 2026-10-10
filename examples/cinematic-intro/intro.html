@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; media-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>PipHound — The Trading Table</title>
+  <link rel="stylesheet" href="intro.css">
+  <script src="vendor/three.min.js" defer></script>
+  <script src="intro.js" defer></script>
+</head>
+<body>
+  <main id="stage" aria-label="Original 24-second PipHound cinematic title sequence">
+    <canvas id="picture" width="1920" height="1080" aria-label="PipHound. The Trading Table. Synthetic Tournament."></canvas>
+  </main>
+  <audio id="score" src="score.ogg" preload="auto"></audio>
+  <nav id="controls" aria-label="Intro playback" hidden>
+    <button id="replay" type="button">Replay intro</button>
+    <button id="sound" type="button" aria-pressed="true">Sound on</button>
+    <span id="status" role="status">Starting intro</span>
+  </nav>
+  <noscript>This original title sequence requires JavaScript. PipHound — The Trading Table — Synthetic Tournament.</noscript>
+</body>
+</html>

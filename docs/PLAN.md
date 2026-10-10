@@ -31,15 +31,27 @@ Release evidence must distinguish synthetic tests, MCP protocol checks, real OBS
 state checks, rendered media inspection, and continuous producer operation.
 Passing one category does not establish the others.
 
-## Current upgrade: 0.2.0a4
+## Current upgrade: 0.2.0a5
+
+Integrate the original 24-second dark-gold simulation opening into the public
+source archive, with local Three.js, MIT provenance and 17 focused tests. The
+exact visual assets match the inspected isolated OBS rehearsal. Review covered
+the main beats and 60 consecutive startup frames after the controls-flash fix.
+This evidence is sampled rendered inspection, not continuous-video acceptance.
+
+The original score remains pending. Missing audio is supported and the example
+plays silently. No public output or platform account setup is part of this work.
+Local continuation: `outputs/continuation.md` records private evidence.
+
+## Published milestone: 0.2.0a4
 
 Commit `5d6d8dd` published this upgrade. Its first CI run exposed a Windows
 test harness encoding error: Node's UTF-8 output used the local code page.
 Explicit UTF-8 decoding fixes the reproduced failure without changing test
-assertions. The repaired local suite passes all 455 tests; fresh CI is pending.
+assertions. The repaired local suite passes all 455 tests; all nine release CI jobs passed.
 
 Local continuation: `outputs/continuation.md` (ignored private evidence). It
-records the unpublished intro, exact asset snapshot and remaining checks.
+records the exact intro asset snapshot and remaining music work.
 
 Restore the near-black and warm-gold showcase palette. Add three original
 decorative Browser Source loops: Fibonacci construction, floating market forms,
