@@ -1,0 +1,110 @@
+{
+  "schema": "obs.layout.v1",
+  "scene_name": "Pack Break Table",
+  "canvas": {
+    "width": 1920,
+    "height": 1080
+  },
+  "layers": [
+    {
+      "id": "backdrop",
+      "type": "color",
+      "color": "#0B1020FF",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "id": "title-plate",
+      "type": "color",
+      "color": "#141B33FF",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 1920,
+        "height": 104
+      }
+    },
+    {
+      "id": "title-rule",
+      "type": "color",
+      "color": "#F2B84BFF",
+      "rect": {
+        "x": 0,
+        "y": 104,
+        "width": 1920,
+        "height": 4
+      }
+    },
+    {
+      "id": "title",
+      "type": "existing",
+      "source_name": "",
+      "rect": {
+        "x": 40,
+        "y": 20,
+        "width": 1840,
+        "height": 64
+      }
+    },
+    {
+      "id": "table-cam",
+      "type": "existing",
+      "source_name": "",
+      "rect": {
+        "x": 40,
+        "y": 132,
+        "width": 1296,
+        "height": 729
+      },
+      "border": {
+        "width": 4,
+        "color": "#F2B84BFF"
+      }
+    },
+    {
+      "id": "face-cam",
+      "type": "existing",
+      "source_name": "",
+      "rect": {
+        "x": 1416,
+        "y": 132,
+        "width": 464,
+        "height": 261
+      },
+      "border": {
+        "width": 3,
+        "color": "#2FC4B2FF"
+      }
+    },
+    {
+      "id": "side-panel",
+      "type": "color",
+      "color": "#141B33FF",
+      "rect": {
+        "x": 1416,
+        "y": 417,
+        "width": 464,
+        "height": 444
+      }
+    },
+    {
+      "id": "now-opening",
+      "type": "existing",
+      "source_name": "",
+      "rect": {
+        "x": 40,
+        "y": 885,
+        "width": 1840,
+        "height": 150
+      },
+      "border": {
+        "width": 4,
+        "color": "#F2B84BFF"
+      }
+    }
+  ]
+}

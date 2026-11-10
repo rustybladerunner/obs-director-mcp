@@ -12,6 +12,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from obs_director.controls import ProductionService
+from obs_director import templates
 from obs_director.layouts import LayoutError, LayoutService, READS, SETTERS, validate_layout_recipe
 from obs_director.transport import ObsError, ObsSettings
 
@@ -552,6 +553,47 @@ class LayoutTests(unittest.TestCase):
             self.assertFalse(result["applied"])
             self.assertEqual(self.obs.writes(), [])
             self.assertNotIn(str(path), json.dumps(result))
+
+
+class PackBreakLayoutTests(unittest.TestCase):
+    """The bundled pack-break recipes plan and apply through the real layout service."""
+
+    def setUp(self):
+        self.obs = FakeOBS()
+        self.service = LayoutService(ProductionService(lambda: self.obs))
+        self.clock = 0.0
+        self.enterContext(patch("obs_director.layouts.time.monotonic", side_effect=lambda: self.clock))
+        self.enterContext(patch("obs_director.layouts.time.sleep", side_effect=lambda seconds: setattr(self, "clock", self.clock + seconds)))
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+
+    def bound(self, name, canvas):
+        info = templates.get_template(name)
+        bindings = {item["key"]: "Source " + item["key"] for item in info["bindings"]}
+        result = templates.add_template(name, Path(self.temp.name) / name, bindings)
+        self.obs.canvas = {"baseWidth": canvas[0], "baseHeight": canvas[1]}
+        for source in bindings.values():
+            self.obs.inputs[source] = {"kind": "camera_input", "settings": {}, "size": canvas, "uuid": source}
+        return json.loads(Path(result["recipe_path"]).read_text())
+
+    def test_every_layout_applies_once_then_repeats_without_writes(self):
+        for name, canvas in (("pack-break-table", (1920, 1080)), ("pack-break-closeup", (1920, 1080)),
+                             ("pack-break-vertical", (1080, 1920))):
+            with self.subTest(name=name):
+                self.setUp()
+                value = self.bound(name, canvas)
+                first = self.service.apply_layout(value, False)
+                self.assertEqual("completed", first["state"], first)
+                self.obs.calls.clear()
+                self.assertEqual("unchanged", self.service.apply_layout(value, False)["state"])
+                self.assertEqual([], self.obs.writes())
+
+    def test_vertical_layout_is_refused_by_a_landscape_obs_canvas_before_any_write(self):
+        value = self.bound("pack-break-vertical", (1080, 1920))
+        self.obs.canvas = {"baseWidth": 1920, "baseHeight": 1080}
+        with self.assertRaises(LayoutError):
+            self.service.apply_layout(value, False)
+        self.assertEqual([], self.obs.writes())
 
 
 if __name__ == "__main__":

@@ -1,0 +1,30 @@
+{
+  "name": "Wrap up",
+  "steps": [
+    {
+      "action": "source_settings",
+      "parameters": {
+        "source_name": "Title Text",
+        "settings": {
+          "text": "Thanks for Watching"
+        }
+      }
+    },
+    {
+      "action": "source_settings",
+      "parameters": {
+        "source_name": "Now Opening Text",
+        "settings": {
+          "text": "See you at the next break"
+        }
+      }
+    },
+    {
+      "action": "scene_select",
+      "parameters": {
+        "scene_name": "Pack Break Table",
+        "target": "program"
+      }
+    }
+  ]
+}

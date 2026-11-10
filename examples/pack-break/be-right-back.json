@@ -1,0 +1,28 @@
+{
+  "name": "Be right back",
+  "steps": [
+    {
+      "action": "source_settings",
+      "parameters": {
+        "source_name": "Title Text",
+        "settings": {
+          "text": "Be Right Back"
+        }
+      }
+    },
+    {
+      "action": "scene_select",
+      "parameters": {
+        "scene_name": "Pack Break Holding",
+        "target": "program"
+      }
+    },
+    {
+      "action": "audio_mute",
+      "parameters": {
+        "source_name": "Microphone",
+        "muted": true
+      }
+    }
+  ]
+}

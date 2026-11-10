@@ -1,0 +1,21 @@
+{
+  "name": "Starting soon",
+  "steps": [
+    {
+      "action": "source_settings",
+      "parameters": {
+        "source_name": "Title Text",
+        "settings": {
+          "text": "Starting Soon"
+        }
+      }
+    },
+    {
+      "action": "scene_select",
+      "parameters": {
+        "scene_name": "Pack Break Holding",
+        "target": "program"
+      }
+    }
+  ]
+}

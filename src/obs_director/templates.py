@@ -22,6 +22,7 @@ MAX_COPY_BYTES = 32 * 1024 * 1024
 NAME = re.compile(r"[a-z][a-z0-9-]{0,47}\Z")
 BINDING = re.compile(r"[A-Z][A-Z0-9_]{0,31}\Z")
 THEME_RECIPES = {"light": "template.json", "dark": "template.dark.json"}
+MAX_BINDINGS = 8
 
 
 class TemplateError(ValueError):
@@ -112,16 +113,17 @@ def _catalog(root) -> list[dict]:
             raise TemplateError("Invalid or duplicate template name")
         names.add(name)
         themes = entry["themes"]
+        # The first declared theme is the default; a template need not offer light.
         if (not isinstance(themes, list) or not themes or len(themes) > len(THEME_RECIPES)
                 or any(not isinstance(theme, str) or theme not in THEME_RECIPES for theme in themes)
-                or len(set(themes)) != len(themes) or "light" not in themes):
+                or len(set(themes)) != len(themes)):
             raise TemplateError("Invalid template theme declaration")
         for field, limit in (("title", 80), ("description", 300)):
             if not isinstance(entry[field], str) or not 1 <= len(entry[field]) <= limit:
                 raise TemplateError("Invalid template description")
         bindings = entry["bindings"]
-        if not isinstance(bindings, list) or not 1 <= len(bindings) <= 4:
-            raise TemplateError("Templates require one to four source bindings")
+        if not isinstance(bindings, list) or not 1 <= len(bindings) <= MAX_BINDINGS:
+            raise TemplateError("Templates require one to eight source bindings")
         keys, layers = set(), set()
         for binding in bindings:
             if not isinstance(binding, dict) or set(binding) != {"key", "layer_id", "description"}:
@@ -145,36 +147,46 @@ def list_templates() -> list[dict[str, Any]]:
     return deepcopy(_catalog(_root()))
 
 
-def get_template(name: str, theme: str = "light") -> dict[str, Any]:
-    """Return metadata and an unbound portable recipe, never machine-local paths."""
+def _bind(recipe: dict, entry: dict, values: dict[str, str]) -> dict:
+    """Return a copy of an unbound bundled recipe with each declared source name filled in."""
+    if not isinstance(recipe.get("layers"), list) or not isinstance(recipe.get("assets", {}), dict):
+        raise TemplateError("Invalid template recipe")
+    bound = deepcopy(recipe)
+    existing = {layer.get("id"): layer for layer in bound["layers"]
+                if isinstance(layer, dict) and layer.get("type") == "existing"}
+    if set(existing) != {binding["layer_id"] for binding in entry["bindings"]}:
+        raise TemplateError("Template source declarations do not match its layers")
+    for binding in entry["bindings"]:
+        layer = existing[binding["layer_id"]]
+        if layer.get("source_name") != "":
+            raise TemplateError("Bundled templates must leave source names unbound")
+        layer["source_name"] = values[binding["key"]]
+    for relative in bound.get("assets", {}).values():
+        parts = _relative(relative)
+        if len(parts) != 2 or parts[0] != "assets" or not parts[1].endswith(".png"):
+            raise TemplateError("Template assets must name PNG files in assets/")
+    return bound
+
+
+def get_template(name: str, theme: str | None = None) -> dict[str, Any]:
+    """Return metadata and an unbound portable recipe, never machine-local paths.
+
+    theme=None selects the template's first declared theme.
+    """
     from .layouts import validate_layout_recipe
 
     if not isinstance(name, str) or not NAME.fullmatch(name):
         raise TemplateError("Invalid template name")
-    if not isinstance(theme, str) or theme not in THEME_RECIPES:
+    if theme is not None and (not isinstance(theme, str) or theme not in THEME_RECIPES):
         raise TemplateError("Theme must be light or dark")
     for entry in list_templates():
         if entry["name"] == name:
+            theme = entry["themes"][0] if theme is None else theme
             if theme not in entry["themes"]:
                 raise TemplateError("Theme is not available for this template")
             recipe = _json(_read(_root(), name + "/" + THEME_RECIPES[theme], MAX_TEXT_BYTES))
-            if not isinstance(recipe.get("layers"), list) or not isinstance(recipe.get("assets", {}), dict):
-                raise TemplateError("Invalid template recipe")
-            validation = deepcopy(recipe)
-            existing = {layer.get("id"): layer for layer in validation["layers"]
-                        if isinstance(layer, dict) and layer.get("type") == "existing"}
-            if set(existing) != {binding["layer_id"] for binding in entry["bindings"]}:
-                raise TemplateError("Template source declarations do not match its layers")
-            for binding in entry["bindings"]:
-                layer = existing[binding["layer_id"]]
-                if layer.get("source_name") != "":
-                    raise TemplateError("Bundled templates must leave source names unbound")
-                layer["source_name"] = "Template validation " + binding["key"]
-            for relative in validation.get("assets", {}).values():
-                parts = _relative(relative)
-                if len(parts) != 2 or parts[0] != "assets" or not parts[1].endswith(".png"):
-                    raise TemplateError("Template assets must name PNG files in assets/")
-            validate_layout_recipe(validation)
+            placeholders = {binding["key"]: "Template validation " + binding["key"] for binding in entry["bindings"]}
+            validate_layout_recipe(_bind(recipe, entry, placeholders))
             return {**entry, "theme": theme, "recipe": recipe}
     raise TemplateError("Unknown template name")
 
@@ -207,11 +219,12 @@ def _png(content: bytes) -> None:
         raise TemplateError("Invalid template artwork") from error
 
 
-def add_template(name: str, output, bindings: dict[str, str], theme: str = "light") -> dict[str, Any]:
+def add_template(name: str, output, bindings: dict[str, str], theme: str | None = None) -> dict[str, Any]:
     """Validate all input, then copy into a new directory without connecting to OBS."""
     from .layouts import validate_layout_recipe
 
     metadata = get_template(name, theme=theme)
+    theme = metadata["theme"]
     destination = _destination(output)
     expected = {binding["key"] for binding in metadata["bindings"]}
     if not isinstance(bindings, dict) or set(bindings) != expected:
@@ -221,23 +234,10 @@ def add_template(name: str, output, bindings: dict[str, str], theme: str = "ligh
                 or any(ord(char) < 32 or ord(char) == 127 for char in value)):
             raise TemplateError("Source bindings require nonempty source names with no control characters")
     root = _root()
-    recipe = deepcopy(metadata["recipe"])
-    if not isinstance(recipe.get("layers"), list) or not isinstance(recipe.get("assets", {}), dict):
-        raise TemplateError("Invalid template recipe")
-    existing = {layer.get("id"): layer for layer in recipe["layers"]
-                if isinstance(layer, dict) and layer.get("type") == "existing"}
-    if set(existing) != {binding["layer_id"] for binding in metadata["bindings"]}:
-        raise TemplateError("Template source declarations do not match its layers")
-    for binding in metadata["bindings"]:
-        layer = existing[binding["layer_id"]]
-        if layer.get("source_name") != "":
-            raise TemplateError("Bundled templates must leave source names unbound")
-        layer["source_name"] = bindings[binding["key"]]
+    recipe = _bind(metadata["recipe"], metadata, bindings)
     files = {}
     for asset_id, relative in recipe.get("assets", {}).items():
         parts = _relative(relative)
-        if len(parts) != 2 or parts[0] != "assets" or not parts[1].endswith(".png"):
-            raise TemplateError("Template assets must name PNG files in assets/")
         content = _read(root, relative, MAX_ASSET_BYTES)
         _png(content)
         files[relative] = content
@@ -246,7 +246,8 @@ def add_template(name: str, output, bindings: dict[str, str], theme: str = "ligh
     # and OBS capabilities remain the layout preview/apply preflight's work.
     recipe = validate_layout_recipe(recipe)
     files["template.json"] = (json.dumps(recipe, indent=2) + "\n").encode("utf-8")
-    for filename in ("README.md", "prompts.md"):
+    # Artwork prompts only make sense for a template that ships artwork.
+    for filename in ("README.md", *(("prompts.md",) if recipe.get("assets") else ())):
         files[filename] = _read(root, name + "/" + filename, MAX_TEXT_BYTES)
     if sum(len(content) for content in files.values()) > MAX_COPY_BYTES:
         raise TemplateError("Template copy exceeds its total size limit")
@@ -282,7 +283,8 @@ def main(argv: list[str] | None = None) -> int:
     commands.add_parser("list", help="List bundled templates and required source bindings")
     add = commands.add_parser("add", help="Copy one template into a new local directory")
     add.add_argument("name")
-    add.add_argument("--theme", choices=tuple(THEME_RECIPES), default="light")
+    add.add_argument("--theme", choices=tuple(THEME_RECIPES), default=None,
+                     help="Defaults to the first theme the template declares")
     add.add_argument("--output", required=True, type=Path)
     add.add_argument("--bind", action="append", default=[], metavar="KEY=SOURCE_NAME")
     args = parser.parse_args(argv)

@@ -1,0 +1,71 @@
+{
+  "schema": "obs.event-routes.v1",
+  "routes": {
+    "pack.opened": {
+      "cue": {
+        "name": "Open pack",
+        "steps": [
+          {
+            "action": "source_settings",
+            "parameters": {
+              "source_name": "Now Opening Text",
+              "settings": {
+                "text": "Booster Pack 12"
+              }
+            }
+          },
+          {
+            "action": "scene_select",
+            "parameters": {
+              "scene_name": "Pack Break Table",
+              "target": "program"
+            }
+          },
+          {
+            "action": "audio_mute",
+            "parameters": {
+              "source_name": "Microphone",
+              "muted": false
+            }
+          }
+        ]
+      },
+      "text_step": 0
+    },
+    "hit.revealed": {
+      "cue": {
+        "name": "Reveal hit",
+        "steps": [
+          {
+            "action": "source_settings",
+            "parameters": {
+              "source_name": "Hit Card Text",
+              "settings": {
+                "text": "Card of the Night\nHolo Rare"
+              }
+            }
+          },
+          {
+            "action": "scene_select",
+            "parameters": {
+              "scene_name": "Pack Break Closeup",
+              "target": "program"
+            }
+          },
+          {
+            "action": "wait",
+            "seconds": 8
+          },
+          {
+            "action": "scene_select",
+            "parameters": {
+              "scene_name": "Pack Break Table",
+              "target": "program"
+            }
+          }
+        ]
+      },
+      "text_step": 0
+    }
+  }
+}

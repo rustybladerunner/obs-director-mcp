@@ -1,6 +1,7 @@
 """Template copying is offline. Fixtures never open OBS or an image service."""
 from copy import deepcopy
 import io
+import itertools
 import json
 from pathlib import Path
 import shutil
@@ -34,10 +35,11 @@ class TemplateTests(unittest.TestCase):
         shutil.copytree(DATA, root)
         return root
 
-    def test_catalog_is_portable_data_and_has_only_the_selected_template(self):
+    def test_catalog_is_portable_data_and_lists_every_bundled_template(self):
         with patch("obs_director.transport.ObsClient", side_effect=AssertionError("No OBS")):
             catalog = templates.list_templates()
-            self.assertEqual(["funded-desk"], [entry["name"] for entry in catalog])
+            self.assertEqual(["funded-desk", "pack-break-table", "pack-break-closeup", "pack-break-vertical"],
+                             [entry["name"] for entry in catalog])
             self.assertEqual(["light", "dark"], catalog[0]["themes"])
             self.assertEqual(set(BINDINGS), {item["key"] for item in catalog[0]["bindings"]})
             self.assertEqual(["https://tradefunded.com/"], catalog[0]["references"])
@@ -72,7 +74,7 @@ class TemplateTests(unittest.TestCase):
         self.assertEqual(light["recipe"], comparison)
 
     def test_invalid_themes_refuse_without_writes(self):
-        for theme in ("sepia", "../light", "DARK", "", None, False, {}):
+        for theme in ("sepia", "../light", "DARK", "", False, {}):
             with self.subTest(theme=theme), self.assertRaises(templates.TemplateError):
                 templates.get_template("funded-desk", theme=theme)
             with self.subTest(theme=theme), self.assertRaises(templates.TemplateError):
@@ -253,19 +255,149 @@ class TemplateTests(unittest.TestCase):
             self.assertEqual("refused", json.loads(output.getvalue())["state"])
         self.assertFalse(self.output.exists())
 
-    def test_cli_theme_routes_dark_and_default_stays_light(self):
+    def test_cli_theme_routes_dark_and_default_defers_to_the_template(self):
         args = ["add", "funded-desk", "--output", str(self.output)]
         for key, value in BINDINGS.items():
             args.extend(["--bind", key + "=" + value])
         with patch.object(templates, "add_template", return_value={"copied": True}) as copy, patch("sys.stdout", new_callable=io.StringIO):
             self.assertEqual(0, templates.main(args))
-            self.assertEqual("light", copy.call_args.kwargs["theme"])
+            self.assertIsNone(copy.call_args.kwargs["theme"])  # the template picks its first theme (light for funded-desk)
             self.assertEqual(0, templates.main([*args, "--theme", "dark"]))
             self.assertEqual("dark", copy.call_args.kwargs["theme"])
         with patch("sys.stderr", new_callable=io.StringIO), self.assertRaises(SystemExit) as error:
             templates.main([*args, "--theme", "sepia"])
         self.assertEqual(2, error.exception.code)
         self.assertFalse(self.output.exists())
+
+
+PACK_BINDINGS = {
+    "pack-break-table": {"TABLE_CAM": "Synthetic table", "FACE_CAM": "Synthetic face", "TITLE": "Synthetic title",
+                         "NOW_OPENING": "Synthetic opening"},
+    "pack-break-closeup": {"CLOSEUP_CAM": "Synthetic closeup", "TABLE_CAM": "Synthetic table", "HIT_CARD": "Synthetic hit"},
+    "pack-break-vertical": {"TABLE_CAM": "Synthetic table", "CLOSEUP_CAM": "Synthetic closeup", "FACE_CAM": "Synthetic face",
+                            "TITLE": "Synthetic title", "NOW_OPENING": "Synthetic opening", "HIT_CARD": "Synthetic hit"},
+}
+PACK_BREAK_ITEMS = list(PACK_BINDINGS.items())
+CANVAS = {"pack-break-table": (1920, 1080), "pack-break-closeup": (1920, 1080), "pack-break-vertical": (1080, 1920)}
+
+
+def _area(layer):
+    return layer["rect"]["width"] * layer["rect"]["height"]
+
+
+def _overlap(first, second):
+    a, b = first["rect"], second["rect"]
+    return (a["x"] < b["x"] + b["width"] and b["x"] < a["x"] + a["width"]
+            and a["y"] < b["y"] + b["height"] and b["y"] < a["y"] + a["height"])
+
+
+class PackBreakFamilyTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.base = Path(self.temp.name)
+
+    def sources(self, name):
+        recipe = templates.get_template(name)["recipe"]
+        return {layer["id"]: layer for layer in recipe["layers"] if layer["type"] == "existing"}
+
+    def test_each_layout_declares_its_bindings_canvas_and_a_dark_only_theme(self):
+        for name, bindings in PACK_BREAK_ITEMS:
+            with self.subTest(name=name):
+                entry = templates.get_template(name)
+                self.assertEqual(["dark"], entry["themes"])
+                self.assertEqual("dark", entry["theme"])
+                self.assertEqual(set(bindings), {item["key"] for item in entry["bindings"]})
+                width, height = CANVAS[name]
+                self.assertEqual({"width": width, "height": height}, entry["recipe"]["canvas"])
+                self.assertEqual([], entry["references"])
+                with self.assertRaises(templates.TemplateError):
+                    templates.get_template(name, theme="light")
+
+    def test_each_layout_copies_with_bindings_and_stays_inside_the_item_budget(self):
+        for name, bindings in PACK_BREAK_ITEMS:
+            with self.subTest(name=name):
+                result = templates.add_template(name, self.base / name, bindings)
+                recipe = json.loads(Path(result["recipe_path"]).read_text())
+                self.assertEqual(recipe, validate_layout_recipe(recipe))
+                self.assertEqual(set(bindings.values()), {item["source_name"] for item in recipe["layers"] if item["type"] == "existing"})
+                self.assertLessEqual(sum(5 if "border" in layer else 1 for layer in recipe["layers"]), 32)
+                self.assertEqual(["README.md", "template.json"], result["files"])
+                self.assertEqual({}, recipe["assets"])
+
+    def test_table_layout_makes_the_table_camera_the_hero(self):
+        sources = self.sources("pack-break-table")
+        hero = sources["table-cam"]
+        for other in ("face-cam", "title", "now-opening"):
+            self.assertGreater(_area(hero), 3 * _area(sources[other]))
+        self.assertGreater(_area(hero) / (1920 * 1080), 0.4)
+        for first, second in itertools.combinations(sources.values(), 2):
+            self.assertFalse(_overlap(first, second), (first["id"], second["id"]))
+
+    def test_closeup_layout_is_full_frame_with_a_small_table_inset_and_hit_card(self):
+        recipe = templates.get_template("pack-break-closeup")["recipe"]
+        sources = self.sources("pack-break-closeup")
+        self.assertEqual({"x": 0, "y": 0, "width": 1920, "height": 1080}, sources["closeup-cam"]["rect"])
+        self.assertEqual("closeup-cam", recipe["layers"][0]["id"])
+        self.assertLess(_area(sources["table-cam"]), _area(sources["closeup-cam"]) / 10)
+        order = [layer["id"] for layer in recipe["layers"]]
+        for overlay in ("table-cam", "hit-card"):
+            self.assertGreater(order.index(overlay), order.index("closeup-cam"))
+
+    def test_vertical_layout_is_portrait_with_every_source_and_no_overlap(self):
+        sources = self.sources("pack-break-vertical")
+        self.assertEqual({"table-cam", "closeup-cam", "face-cam", "title", "now-opening", "hit-card"}, set(sources))
+        for first, second in itertools.combinations(sources.values(), 2):
+            self.assertFalse(_overlap(first, second), (first["id"], second["id"]))
+        # Platform chrome covers the bottom of a portrait frame; keep content above it.
+        self.assertTrue(all(layer["rect"]["y"] + layer["rect"]["height"] <= 1920 - 200 for layer in sources.values()))
+
+    def test_scene_names_are_distinct_so_generated_inputs_never_collide(self):
+        names = [templates.get_template(name)["recipe"]["scene_name"] for name, _ in PACK_BREAK_ITEMS]
+        self.assertEqual(["Pack Break Table", "Pack Break Closeup", "Pack Break Vertical"], names)
+
+    def test_cli_defaults_to_the_templates_own_theme(self):
+        name, bindings = PACK_BREAK_ITEMS[0]
+        args = ["add", name, "--output", str(self.base / "cli")]
+        for key, value in bindings.items():
+            args.extend(["--bind", key + "=" + value])
+        with patch.object(templates, "add_template", return_value={"copied": True}) as copy, patch("sys.stdout", new_callable=io.StringIO):
+            self.assertEqual(0, templates.main(args))
+            self.assertIsNone(copy.call_args.kwargs["theme"])
+
+
+class CatalogConstraintTests(unittest.TestCase):
+    """The catalog allows what real layouts need: many bindings and any theme set."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name) / "resources"
+        shutil.copytree(DATA, self.root)
+        self.path = self.root / "catalog.json"
+        self.catalog = json.loads(self.path.read_text())
+
+    def check(self, entry_edit):
+        catalog = deepcopy(self.catalog)
+        entry_edit(catalog["templates"][0])
+        self.path.write_text(json.dumps(catalog))
+        with patch.object(templates, "_root", return_value=self.root):
+            return templates.list_templates()
+
+    def extras(self, count):
+        return [{"key": "EXTRA_" + "X" * i, "layer_id": "extra-" + "x" * i, "description": "Extra"}
+                for i in range(1, count + 1)]
+
+    def test_eight_bindings_are_declared_but_nine_are_refused(self):
+        self.check(lambda entry: entry["bindings"].extend(self.extras(4)))
+        with self.assertRaises(templates.TemplateError):
+            self.check(lambda entry: entry["bindings"].extend(self.extras(5)))
+
+    def test_themes_must_be_known_unique_and_nonempty_but_light_is_not_required(self):
+        self.check(lambda entry: entry.update(themes=["dark"]))
+        for themes in ([], ["sepia"], ["dark", "dark"], "dark", ["light", 1]):
+            with self.subTest(themes=themes), self.assertRaises(templates.TemplateError):
+                self.check(lambda entry: entry.update(themes=themes))
 
 
 if __name__ == "__main__":

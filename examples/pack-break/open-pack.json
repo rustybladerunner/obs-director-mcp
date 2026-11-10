@@ -1,0 +1,28 @@
+{
+  "name": "Open pack",
+  "steps": [
+    {
+      "action": "source_settings",
+      "parameters": {
+        "source_name": "Now Opening Text",
+        "settings": {
+          "text": "Booster Pack 12"
+        }
+      }
+    },
+    {
+      "action": "scene_select",
+      "parameters": {
+        "scene_name": "Pack Break Table",
+        "target": "program"
+      }
+    },
+    {
+      "action": "audio_mute",
+      "parameters": {
+        "source_name": "Microphone",
+        "muted": false
+      }
+    }
+  ]
+}

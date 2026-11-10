@@ -1,0 +1,32 @@
+{
+  "name": "Reveal hit",
+  "steps": [
+    {
+      "action": "source_settings",
+      "parameters": {
+        "source_name": "Hit Card Text",
+        "settings": {
+          "text": "Card of the Night\nHolo Rare"
+        }
+      }
+    },
+    {
+      "action": "scene_select",
+      "parameters": {
+        "scene_name": "Pack Break Closeup",
+        "target": "program"
+      }
+    },
+    {
+      "action": "wait",
+      "seconds": 8
+    },
+    {
+      "action": "scene_select",
+      "parameters": {
+        "scene_name": "Pack Break Table",
+        "target": "program"
+      }
+    }
+  ]
+}

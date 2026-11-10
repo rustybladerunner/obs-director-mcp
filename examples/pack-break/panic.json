@@ -1,0 +1,22 @@
+{
+  "schema": "obs.panic-cue.v1",
+  "cue": {
+    "name": "Pack break panic",
+    "steps": [
+      {
+        "action": "audio_mute",
+        "parameters": {
+          "source_name": "Microphone",
+          "muted": true
+        }
+      },
+      {
+        "action": "scene_select",
+        "parameters": {
+          "scene_name": "Pack Break Holding",
+          "target": "program"
+        }
+      }
+    ]
+  }
+}

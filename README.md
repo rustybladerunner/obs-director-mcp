@@ -20,6 +20,7 @@ Package-registry publication is not part of this alpha.
 | Sources | Add inputs. Change settings, visibility, position, crop, and scale. |
 | Layouts | Preview and apply a complete recipe with existing inputs, local images, colors, borders, and item order. Repeated application reuses matching items. |
 | Templates | Copy the editable light or dark Funded Desk template, original artwork, and image prompts into a new local folder. |
+| Pack break | Three dark pack-opening layouts, five show-move cues, a panic cue and event routes for a live card-opening show. See [Pack break](docs/PACK-BREAK.md). |
 | Audio | Set the mute state and volume. |
 | Filters | Read filter names. Enable filters. Change settings of existing filters. |
 | Media | Play, pause, stop, start again, and seek. Next/previous commands have limited result verification. |

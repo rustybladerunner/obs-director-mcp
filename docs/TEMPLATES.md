@@ -4,7 +4,10 @@ Templates are local files that you own after copying.
 Edit the recipe, artwork, and prompts without changing the package.
 Package updates do not overwrite your copy.
 
-The initial catalog contains one template: **Funded Desk**, with light and dark themes.
+The catalog contains **Funded Desk**, with light and dark themes, and the dark-only
+[pack break](PACK-BREAK.md) layouts `pack-break-table`, `pack-break-closeup` and `pack-break-vertical`.
+A template declares up to eight source bindings. Without `--theme`, a copy uses the template's first declared theme.
+The rest of this page uses Funded Desk as the example.
 Its 1920 by 1080 canvas has a large chart, square presenter portrait, guest or replay seat, and status panel.
 Light uses warm ivory and near-black with restrained gold accents.
 Dark uses a near-black architectural background with the same gold frame and geometry.

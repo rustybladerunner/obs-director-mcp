@@ -5,7 +5,10 @@
       "name": "funded-desk",
       "title": "Funded Desk",
       "description": "An original creator desk in light or dark colors, with a large chart, square presenter portrait, guest or replay seat, and gold accents.",
-      "themes": ["light", "dark"],
+      "themes": [
+        "light",
+        "dark"
+      ],
       "bindings": [
         {
           "key": "CHART",
@@ -31,6 +34,104 @@
       "references": [
         "https://tradefunded.com/"
       ]
+    },
+    {
+      "name": "pack-break-table",
+      "title": "Pack Break Table",
+      "description": "A 1920 by 1080 pack-opening show: wide table camera as the hero, small face camera, title strip and a now-opening text card.",
+      "themes": [
+        "dark"
+      ],
+      "bindings": [
+        {
+          "key": "TABLE_CAM",
+          "layer_id": "table-cam",
+          "description": "Existing wide overhead camera that shows the table and the packs"
+        },
+        {
+          "key": "FACE_CAM",
+          "layer_id": "face-cam",
+          "description": "Existing camera that shows the host"
+        },
+        {
+          "key": "TITLE",
+          "layer_id": "title",
+          "description": "Existing text input for the show title strip"
+        },
+        {
+          "key": "NOW_OPENING",
+          "layer_id": "now-opening",
+          "description": "Existing text input for the now-opening card"
+        }
+      ],
+      "references": []
+    },
+    {
+      "name": "pack-break-closeup",
+      "title": "Pack Break Closeup",
+      "description": "A 1920 by 1080 hit reveal: the close-up camera fills the frame, with a small table inset and a hit name card.",
+      "themes": [
+        "dark"
+      ],
+      "bindings": [
+        {
+          "key": "CLOSEUP_CAM",
+          "layer_id": "closeup-cam",
+          "description": "Existing close-up camera that shows one card at a time"
+        },
+        {
+          "key": "TABLE_CAM",
+          "layer_id": "table-cam",
+          "description": "Existing wide overhead camera that shows the table and the packs"
+        },
+        {
+          "key": "HIT_CARD",
+          "layer_id": "hit-card",
+          "description": "Existing text input for the hit name card"
+        }
+      ],
+      "references": []
+    },
+    {
+      "name": "pack-break-vertical",
+      "title": "Pack Break Vertical",
+      "description": "A 1080 by 1920 portrait pack-opening show for vertical platforms: title, table camera, close-up camera, face camera, now-opening and hit cards.",
+      "themes": [
+        "dark"
+      ],
+      "bindings": [
+        {
+          "key": "TABLE_CAM",
+          "layer_id": "table-cam",
+          "description": "Existing wide overhead camera that shows the table and the packs"
+        },
+        {
+          "key": "CLOSEUP_CAM",
+          "layer_id": "closeup-cam",
+          "description": "Existing close-up camera that shows one card at a time"
+        },
+        {
+          "key": "FACE_CAM",
+          "layer_id": "face-cam",
+          "description": "Existing camera that shows the host"
+        },
+        {
+          "key": "TITLE",
+          "layer_id": "title",
+          "description": "Existing text input for the show title strip"
+        },
+        {
+          "key": "NOW_OPENING",
+          "layer_id": "now-opening",
+          "description": "Existing text input for the now-opening card"
+        },
+        {
+          "key": "HIT_CARD",
+          "layer_id": "hit-card",
+          "description": "Existing text input for the hit name card"
+        }
+      ],
+      "references": []
     }
   ]
 }
