@@ -23,6 +23,7 @@ def create_server(production=None, capture=None, cues=None, events=None, layouts
         "If recording or streaming is active, set allow_live=true for production changes. "
         "Output start/stop commands need OBS_MCP_ALLOW_OUTPUT_CONTROL=1 locally. "
         "Validate every cue step before execution. A failure does not reverse completed changes. "
+        "obs_cancel_cue stops a running cue at once; obs_panic cancels it and runs the trusted local panic cue. "
         "Do not return passwords, source settings, or captured pixels."
     ))
     read = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
@@ -55,6 +56,8 @@ def create_server(production=None, capture=None, cues=None, events=None, layouts
         (capture.capture_sessions, "obs_capture_sessions", read),
         (cues.validate_cue, "obs_validate_cue", read),
         (cues.run_cue, "obs_run_cue", write),
+        (cues.cancel_cue, "obs_cancel_cue", write),
+        (cues.panic, "obs_panic", write),
         (events.preview_event, "obs_preview_event", read),
         (events.dispatch_event, "obs_dispatch_event", write),
         (layouts.preview_layout, "obs_preview_layout", read),

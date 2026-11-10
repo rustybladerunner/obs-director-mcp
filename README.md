@@ -135,6 +135,7 @@ The release files must not contain these credentials. The server connects only t
 | `OBS_MCP_DATA_DIR` | Select the local directory for server state. |
 | `OBS_MCP_EVIDENCE_ROOT` | Select the local directory for capture evidence. |
 | `OBS_MCP_ALLOW_OUTPUT_CONTROL` | Set to `1` to permit output start/stop commands. |
+| `OBS_MCP_PANIC_CUE` | Select an absolute path to a local panic-cue JSON file. Without this setting, `obs_panic` only cancels the running cue. |
 | `OBS_MCP_EVENT_ROUTES` | Select an absolute path to a local event-route JSON file. Without this setting, no event routes exist. |
 
 Refer to [Security and private data](docs/SECURITY.md) before live operation.
@@ -157,6 +158,15 @@ Both validation tools examine the complete cue. `obs_validate_cue` does not acce
 The server validates every step before the first change. A cue cannot contain arbitrary commands, scripts, or stream-start steps.
 Cue changes to source settings contain text only, with a maximum of 4096 characters.
 Individual source tools have a different settings interface.
+
+### Cancel and panic
+
+A running cue holds the production lock, but it never blocks an urgent correction:
+
+- `obs_cancel_cue` stops the running cue at once, even in the middle of a wait, without taking the production lock. The step in progress is `cancelled`, later steps are `skipped` with reason `cancelled`, and completed steps stay completed. Nothing is rolled back. With no cue running it does nothing and cannot cancel a later cue.
+- `obs_panic` cancels the running cue, then runs a trusted local panic cue, for example a cut to a safe scene and a microphone mute. It previews by default; use `dry_run=false` to act, with `allow_live=true` if recording or streaming is active. A preview cancels nothing and changes nothing.
+
+Register the panic cue as a JSON file of the form `{"schema": "obs.panic-cue.v1", "cue": {...}}` (at most 128 KiB) and set `OBS_MCP_PANIC_CUE` to its absolute path. Without it, `obs_panic` only cancels. Omit `expected_scene` from a panic cue, because the scene is unpredictable when it runs.
 
 If an OBS command or its result check fails, the server stops the cue.
 The result identifies completed, failed, and skipped steps. The server does not reverse earlier changes.
@@ -184,7 +194,7 @@ These fields cannot contain control characters.
 
 If recording or streaming is active, both event calls also need `allow_live=true`.
 A preview does not consume an event identifier.
-The server keeps up to 1024 consumed event identifiers in process memory. It refuses new identifiers when this capacity is full.
+The server remembers consumed event identifiers in process memory for one hour (the library accepts 60 to 86,400 seconds). A repeated identifier inside that window is a duplicate. Up to 1024 identifiers are held; if 1024 younger ones are held, new executions are refused until older ones expire.
 After successful validation, an execution attempt consumes its identifier even if execution fails or its result is uncertain.
 The server rejects different content with a previously consumed identifier.
 The server loses this record when it restarts. A producer needs its own persistent record to prevent execution after a restart.

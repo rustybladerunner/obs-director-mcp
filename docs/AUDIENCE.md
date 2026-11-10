@@ -111,8 +111,10 @@ extend the total elapsed time. No route selects a scene or controls an output.
 `EventService` serializes execution and deduplicates IDs in the current process.
 Previews do not consume IDs. An execution attempt consumes its ID even if a later
 step fails. A failure can leave an overlay visible; inspect OBS before recovery.
-The default capacity is 1,024 IDs, configurable up to 4,096. A full store refuses
-new executions; it does not discard old IDs. Restarting the process loses the store.
+The default capacity is 1,024 IDs, configurable up to 4,096. Each ID is remembered
+for a window of one hour (60 to 86,400 seconds in the library); older IDs are dropped
+before the capacity check. A store full of younger IDs refuses new executions; it
+never discards an ID still inside its window. Restarting the process loses the store.
 There is no rollback, durable delivery queue, restart-safe ledger, or provider
 ingestion in this module. A future connector must authenticate and authorize the
 channel, validate provider delivery, preserve stable IDs and timestamps, and keep

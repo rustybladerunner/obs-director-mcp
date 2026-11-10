@@ -43,7 +43,7 @@ class EventTests(unittest.TestCase):
 
     def test_default_preview_has_no_mutations_writes_waits_or_dedupe_effect(self):
         original = event()
-        with patch.object(Path, "open", side_effect=AssertionError("Preview wrote a file")), patch("obs_director.cues.time.sleep") as sleep:
+        with patch.object(Path, "open", side_effect=AssertionError("Preview wrote a file")), patch("obs_director.cues._wait", return_value=False) as sleep:
             first = self.service.dispatch_event(original)
             second = self.service.preview_event(original)
         self.assertEqual("preview", first["state"])
@@ -154,15 +154,43 @@ class EventTests(unittest.TestCase):
         self.assertEqual("completed", service.dispatch_event(event(), dry_run=False, allow_live=True)["state"])
         self.assertEqual(copy, registered)
 
-    def test_capacity_refuses_new_execution_without_evicting_existing_ids(self):
+    def test_capacity_refuses_new_execution_without_evicting_young_ids(self):
         service = EventService(self.cues, registry(), max_events=1)
-        service.dispatch_event(event(), dry_run=False)
+        first = service.dispatch_event(event(), dry_run=False)
+        self.assertEqual("current_process, last 3600 seconds", first["dedupe_scope"])
         count = len(self.production.mutations)
         self.assertEqual("preview", service.preview_event(event("synthetic-002"))["state"])
         with self.assertRaises(EventValidationError):
             service.dispatch_event(event("synthetic-002"), dry_run=False)
         self.assertEqual("duplicate", service.dispatch_event(event(), dry_run=False)["state"])
         self.assertEqual(count, len(self.production.mutations))
+
+    def test_expired_id_frees_capacity_while_fresh_duplicate_is_refused(self):
+        now = [1000.0]
+        service = EventService(self.cues, registry(), max_events=1, dedupe_seconds=60, clock=lambda: now[0])
+        service.dispatch_event(event(), dry_run=False)
+        now[0] += 59
+        self.assertEqual("duplicate", service.dispatch_event(event(), dry_run=False)["state"])
+        with self.assertRaises(EventValidationError):
+            service.dispatch_event(event("synthetic-002"), dry_run=False)
+        now[0] += 2
+        second = service.dispatch_event(event("synthetic-002"), dry_run=False)
+        self.assertEqual("completed", second["state"])
+        self.assertEqual("current_process, last 60 seconds", second["dedupe_scope"])
+        self.assertEqual(1, len(service._seen))
+
+    def test_dedupe_seconds_is_bounded(self):
+        for value in (59, 86401, True, "60", 60.5):
+            with self.assertRaises(EventValidationError):
+                EventService(self.cues, registry(), dedupe_seconds=value)
+
+    def test_cancelled_event_cue_is_reported_and_stays_consumed(self):
+        def run_cue(plan, dry_run=True, allow_live=False):
+            return {"state": "preview" if dry_run else "cancelled"}
+        with patch.object(self.cues, "run_cue", side_effect=run_cue):
+            result = self.service.dispatch_event(event(), dry_run=False)
+        self.assertEqual("cancelled", result["state"])
+        self.assertEqual("duplicate", self.service.dispatch_event(event(), dry_run=False)["state"])
 
     def test_concurrent_delivery_executes_once(self):
         barrier = threading.Barrier(2)
@@ -188,11 +216,11 @@ class EventTests(unittest.TestCase):
         registered = build_demo_registry(7, 12, 19)
         self.production.current_scene = "Director Demo"
         service = EventService(self.cues, registered)
-        with patch("obs_director.cues.time.sleep") as sleep:
+        with patch("obs_director.cues._wait", return_value=False) as sleep:
             result = service.dispatch_event(event(), dry_run=False)
         self.assertEqual("completed", result["state"])
         self.assertEqual(9, result["cue"]["total_wait_seconds"])
-        self.assertEqual([2, 3, 4], [call.args[0] for call in sleep.call_args_list])
+        self.assertEqual([2, 3, 4], [call.args[1] for call in sleep.call_args_list])
         ids = {values["scene_item_id"] for _, values in self.production.mutations if "scene_item_id" in values}
         self.assertEqual({7, 12, 19}, ids)
         # OBS FFmpeg restart can report PLAYING without decoding when hidden.

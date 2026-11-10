@@ -110,12 +110,12 @@ class AudienceTests(unittest.TestCase):
         registry = build_audience_registry("Program", "Alert Text", 20, 21)
         service = EventService(CueService(production), registry)
         event = normalize_audience_event(audience())
-        with patch("obs_director.cues.time.sleep") as sleep:
+        with patch("obs_director.cues._wait", return_value=False) as sleep:
             self.assertEqual(service.preview_event(event)["state"], "preview")
             self.assertEqual(production.mutations, [])
             sleep.assert_not_called()
             result = service.dispatch_event(event, dry_run=False)
-            sleep.assert_called_once_with(4)
+            self.assertEqual([4], [call.args[1] for call in sleep.call_args_list])
         self.assertEqual(result["state"], "completed")
         self.assertEqual(production.mutations[0][1]["source_name"], "Alert Text")
         self.assertIn("Synthetic Viewer", production.mutations[0][1]["settings"]["text"])
@@ -134,7 +134,7 @@ class AudienceTests(unittest.TestCase):
             service.dispatch_event(event, dry_run=False)
         self.assertEqual(production.mutations, [])
         production.fail_apply_at = 3
-        with patch("obs_director.cues.time.sleep"):
+        with patch("obs_director.cues._wait", return_value=False):
             result = service.dispatch_event(event, dry_run=False, allow_live=True)
         self.assertEqual(result["state"], "failed")
         production.fail_apply_at = None

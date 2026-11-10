@@ -20,7 +20,7 @@ EXPECTED = {
     "obs_source_visibility", "obs_source_transform", "obs_audio_mute", "obs_audio_volume",
     "obs_filters", "obs_filter_settings", "obs_filter_enabled", "obs_media_action",
     "obs_media_seek", "obs_output_control", "obs_capture_health", "obs_start_recording",
-    "obs_stop_recording", "obs_capture_sessions", "obs_validate_cue", "obs_run_cue",
+    "obs_stop_recording", "obs_capture_sessions", "obs_validate_cue", "obs_run_cue", "obs_cancel_cue", "obs_panic",
     "obs_preview_event", "obs_dispatch_event",
     "obs_preview_layout", "obs_apply_layout", "obs_list_templates", "obs_get_template",
     "obs_transitions", "obs_select_transition", "obs_configure_stinger",

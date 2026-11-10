@@ -156,10 +156,11 @@ Completed, failed, and uncertain attempts remain consumed.
 A duplicate returns its previous state and sends no OBS actions.
 Reuse of an ID with different content is rejected.
 
-The default capacity is 1,024 consumed IDs.
-The adapter refuses new executions when the store is full.
-It does not evict IDs to permit old events to replay.
-Library callers can select a capacity from 1 to 4,096.
+The default capacity is 1,024 consumed IDs, each remembered for one hour.
+IDs older than the window are dropped before the capacity check.
+The adapter refuses new executions while the store is full of younger IDs.
+It does not evict an ID inside its window to permit an event to replay.
+Library callers can select a capacity from 1 to 4,096 and a window from 60 to 86,400 seconds.
 
 A process restart clears this store.
 A durable producer must keep its own attempt ledger across restarts.

@@ -7,9 +7,14 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
+import json
 import math
+import os
+import threading
 import time
 from typing import Any, TYPE_CHECKING
+
+from .transport import _local_path
 
 if TYPE_CHECKING:
     from .controls import ProductionService
@@ -17,6 +22,7 @@ if TYPE_CHECKING:
 
 MAX_STEPS = 20
 MAX_WAIT_SECONDS = 15.0
+MAX_PANIC_BYTES = 128 * 1024
 CUE_ACTIONS = frozenset({
     "scene_select", "source_visibility", "source_transform", "audio_mute",
     "audio_volume", "source_settings", "media_action", "media_seek",
@@ -29,6 +35,31 @@ class CueValidationError(ValueError):
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _wait(cancel: threading.Event, seconds: float) -> bool:
+    """Sleep up to `seconds`; return True as soon as the run is cancelled."""
+    return cancel.wait(seconds)
+
+
+def load_panic_cue() -> dict | None:
+    """Load the optional trusted local panic cue. No configuration means none."""
+    configured = os.environ.get("OBS_MCP_PANIC_CUE")
+    if not configured:
+        return None
+    try:
+        path = _local_path(configured)
+        with path.open("rb") as source:
+            raw = source.read(MAX_PANIC_BYTES + 1)
+        if len(raw) > MAX_PANIC_BYTES:
+            raise ValueError()
+        document = json.loads(raw)
+        if (not isinstance(document, dict) or set(document) != {"schema", "cue"}
+                or document["schema"] != "obs.panic-cue.v1"):
+            raise ValueError()
+        return document["cue"]
+    except (OSError, ValueError, TypeError, RecursionError):
+        raise CueValidationError("Local panic cue could not be loaded; check its schema and size") from None
 
 
 def _label(value: Any, field: str) -> str:
@@ -93,8 +124,61 @@ class CueService:
     live state, but validation is not a transaction or an external-control lock.
     """
 
-    def __init__(self, production: ProductionService):
+    def __init__(self, production: ProductionService, panic_cue: dict | None = None):
         self.production = production
+        configured = load_panic_cue() if panic_cue is None else panic_cue
+        self._panic_cue = None if configured is None else deepcopy(configured)
+        if self._panic_cue is not None:
+            _schema(self._panic_cue)
+        # Guards only the pointer to the running cue's cancel event; never held
+        # across OBS work, so cancel_cue stays instant while production.lock is busy.
+        self._run_guard = threading.Lock()
+        self._active_cancel: threading.Event | None = None
+
+    def cancel_cue(self) -> dict:
+        """Ask the running cue to stop. Never takes production.lock.
+
+        Only the cue running right now is affected; a cancel with nothing running
+        is a no-op and cannot leak into a later cue.
+        """
+        with self._run_guard:
+            active = self._active_cancel
+            if active is not None:
+                active.set()
+        return {"cancel_requested": active is not None, "cue_running": active is not None}
+
+    def panic(self, dry_run: bool = True, allow_live: bool = False) -> dict:
+        """Cancel the running cue, then run the trusted local panic cue, if any.
+
+        Dry run (default) changes and cancels nothing. It previews the panic cue
+        against OBS when the production lock is free, and statically otherwise.
+        """
+        if type(dry_run) is not bool or type(allow_live) is not bool:
+            raise CueValidationError("dry_run and allow_live must be booleans")
+        result = {"dry_run": dry_run, "allow_live": allow_live,
+                  "panic_cue_registered": self._panic_cue is not None, "checked_at": _now()}
+        if not dry_run:
+            result["cancel"] = self.cancel_cue()
+            if self._panic_cue is None:
+                return {**result, "state": "cancelled_only", "panic_cue": None}
+            return {**result, "state": "completed",
+                    "panic_cue": self.run_cue(self._panic_cue, dry_run=False, allow_live=allow_live)}
+        with self._run_guard:
+            running = self._active_cancel is not None
+        result["cancel"] = {"cancel_requested": False, "cue_running": running}
+        if self._panic_cue is None:
+            return {**result, "state": "preview", "panic_cue": None}
+        if self.production.lock.acquire(blocking=False):
+            try:
+                preview = self.run_cue(self._panic_cue, dry_run=True, allow_live=allow_live)
+            finally:
+                self.production.lock.release()
+        else:
+            normalized = _schema(self._panic_cue)
+            preview = {"name": normalized["name"], "state": "preview", "validated": False,
+                       "step_count": len(normalized["steps"]),
+                       "reason": "production busy; panic cue not checked against OBS"}
+        return {**result, "state": "preview", "panic_cue": preview}
 
     @staticmethod
     def _expected_scene(client: Any, expected: str | None) -> None:
@@ -139,7 +223,8 @@ class CueService:
         """Preview by default; stop on the first failed action or readback.
 
         A failure receipt preserves completed steps and marks later steps skipped.
-        No rollback is attempted. Only explicit waits consume the 15-second wait
+        No rollback is attempted. cancel_cue() ends the run in a wait or between steps:
+        the step in progress is "cancelled" and later steps "skipped". Only explicit waits consume the 15-second wait
         budget; network latency and OBS processing can extend total elapsed time.
         """
         if type(dry_run) is not bool or type(allow_live) is not bool:
@@ -157,44 +242,68 @@ class CueService:
                       "state": "preview" if dry_run else "completed", "started_at": started_at,
                       "steps": receipts, "rollback_attempted": False,
                       "verification_scope": "OBS control readback; rendered content has not been visually verified"}
-            checked_expected = False
             if not dry_run:
-                for index, plan in enumerate(plans):
-                    receipt = receipts[index]
-                    receipt["started_at"] = _now()
-                    step_started = time.monotonic()
-                    phase = "wait" if plan["action"] == "wait" else "precondition"
-                    try:
-                        if plan["action"] == "wait":
-                            time.sleep(plan["seconds"])
-                        else:
-                            if not checked_expected:
-                                self._expected_scene(client, normalized["expected_scene"])
-                                checked_expected = True
-                            phase = "apply"
-                            applied = self.production.apply_action(plan["action"], plan["parameters"],
-                                                                   client, allow_live=allow_live)
-                            if applied.get("applied") is not True or applied.get("verified") is not True:
-                                receipt.update(state="failed", reason="readback_not_verified",
-                                               failure_phase="readback", may_have_changed=True)
-                                result["state"] = "failed"
-                            else:
-                                receipt.update(applied=True, verified=True)
-                        if receipt["state"] != "failed":
-                            receipt.update(state="completed", reason=None)
-                    except Exception:
-                        # Exceptions may contain source URLs or settings. Preserve
-                        # the failure phase, never an arbitrary upstream message.
-                        receipt.update(state="failed", reason="action_failed", failure_phase=phase,
-                                       may_have_changed=phase == "apply")
-                        result["state"] = "failed"
-                    finally:
-                        receipt["finished_at"] = _now()
-                        receipt["duration_ms"] = round((time.monotonic() - step_started) * 1000, 3)
-                    if receipt["state"] == "failed":
-                        for later in receipts[index + 1:]:
-                            later.update(reason="prior_step_failed", finished_at=_now())
-                        result["failed_step"] = index + 1
-                        break
+                cancel = threading.Event()
+                with self._run_guard:
+                    self._active_cancel = cancel
+                try:
+                    self._execute(plans, receipts, result, client, normalized["expected_scene"], allow_live, cancel)
+                finally:
+                    with self._run_guard:
+                        if self._active_cancel is cancel:
+                            self._active_cancel = None
             result.update(finished_at=_now(), duration_ms=round((time.monotonic() - started) * 1000, 3))
             return result
+
+
+    def _execute(self, plans: list[dict], receipts: list[dict], result: dict, client: Any,
+                 expected_scene: str | None, allow_live: bool, cancel: threading.Event) -> None:
+        """Run validated plans in order, stopping on failure or cancellation."""
+        checked_expected = False
+        for index, plan in enumerate(plans):
+            receipt = receipts[index]
+            if cancel.is_set():
+                # Cancelled between steps: nothing in progress, this and later steps never ran.
+                result["state"] = "cancelled"
+                for later in receipts[index:]:
+                    later.update(reason="cancelled", finished_at=_now())
+                return
+            receipt["started_at"] = _now()
+            step_started = time.monotonic()
+            phase = "wait" if plan["action"] == "wait" else "precondition"
+            try:
+                if plan["action"] == "wait":
+                    if _wait(cancel, plan["seconds"]):
+                        receipt.update(state="cancelled", reason="cancelled")
+                        result["state"] = "cancelled"
+                else:
+                    if not checked_expected:
+                        self._expected_scene(client, expected_scene)
+                        checked_expected = True
+                    phase = "apply"
+                    applied = self.production.apply_action(plan["action"], plan["parameters"],
+                                                           client, allow_live=allow_live)
+                    if applied.get("applied") is not True or applied.get("verified") is not True:
+                        receipt.update(state="failed", reason="readback_not_verified",
+                                       failure_phase="readback", may_have_changed=True)
+                        result["state"] = "failed"
+                    else:
+                        receipt.update(applied=True, verified=True)
+                if receipt["state"] not in ("failed", "cancelled"):
+                    receipt.update(state="completed", reason=None)
+            except Exception:
+                # Exceptions may contain source URLs or settings. Preserve
+                # the failure phase, never an arbitrary upstream message.
+                receipt.update(state="failed", reason="action_failed", failure_phase=phase,
+                               may_have_changed=phase == "apply")
+                result["state"] = "failed"
+            finally:
+                receipt["finished_at"] = _now()
+                receipt["duration_ms"] = round((time.monotonic() - step_started) * 1000, 3)
+            if receipt["state"] in ("failed", "cancelled"):
+                key, reason = (("failed_step", "prior_step_failed") if receipt["state"] == "failed"
+                               else ("cancelled_step", "cancelled"))
+                for later in receipts[index + 1:]:
+                    later.update(reason=reason, finished_at=_now())
+                result[key] = index + 1
+                return

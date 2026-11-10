@@ -7,7 +7,8 @@ import hashlib
 import json
 import os
 import re
-from typing import Any
+import time
+from typing import Any, Callable
 
 from .cues import CueService, _schema
 from .transport import _local_path
@@ -137,12 +138,19 @@ class EventService:
 
     IDs are consumed after successful preflight, before an execution attempt.
     Failed or uncertain executions remain consumed. Previews do not consume IDs.
-    The bounded ID store is process-local and refuses new executions when full.
+    The ID store is process-local and time-bounded: an ID is remembered for
+    dedupe_seconds after it was consumed, then forgotten. While max_events younger
+    IDs are held, new executions are refused; that is the rate bound.
     """
 
-    def __init__(self, cues: CueService, registry: dict | None = None, max_events: int = 1024):
+    def __init__(self, cues: CueService, registry: dict | None = None, max_events: int = 1024,
+                 dedupe_seconds: int = 3600, clock: Callable[[], float] = time.monotonic):
         if type(max_events) is not int or not 1 <= max_events <= 4096:
             raise EventValidationError("max_events must be between 1 and 4096")
+        if type(dedupe_seconds) is not int or not 60 <= dedupe_seconds <= 86400:
+            raise EventValidationError("dedupe_seconds must be between 60 and 86400")
+        self._dedupe_seconds = dedupe_seconds
+        self._clock = clock
         self.cues = cues
         self._routes = _registry(load_event_registry() if registry is None else registry)
         self._max_events = max_events
@@ -168,7 +176,8 @@ class EventService:
     def dispatch_event(self, event: dict, dry_run: bool = True, allow_live: bool = False) -> dict:
         """Return a cue plan by default. Set dry_run=False for execution.
 
-        Each event identifier permits at most one execution attempt per process.
+        Each event identifier permits at most one execution attempt per process
+        within the dedupe window.
         """
         if type(dry_run) is not bool or type(allow_live) is not bool:
             raise EventValidationError("dry_run and allow_live must be booleans")
@@ -176,7 +185,10 @@ class EventService:
         with self.cues.production.lock:
             base = {"event_id": normalized["event_id"], "event_type": normalized["event_type"],
                     "dry_run": dry_run, "duplicate": False,
-                    "checked_at": datetime.now(timezone.utc).isoformat(), "dedupe_scope": "current_process"}
+                    "checked_at": datetime.now(timezone.utc).isoformat(), "dedupe_scope": f"current_process, last {self._dedupe_seconds} seconds"}
+            now = self._clock()
+            for expired in [key for key, entry in self._seen.items() if now - entry["at"] >= self._dedupe_seconds]:
+                del self._seen[expired]
             previous = self._seen.get(normalized["event_id"])
             if previous:
                 if previous["fingerprint"] != fingerprint:
@@ -184,18 +196,18 @@ class EventService:
                 return {**base, "state": "duplicate", "duplicate": True, "applied": False,
                         "previous_state": previous["state"]}
             if not dry_run and len(self._seen) >= self._max_events:
-                raise EventValidationError("Event ID capacity reached; execution is disabled for this process")
+                raise EventValidationError("Event ID capacity reached; retry after the dedupe window frees older IDs")
             try:
                 preview = self.cues.run_cue(cue, dry_run=True, allow_live=allow_live)
             except Exception:
                 raise EventValidationError("Registered event cue failed preflight; no event action was sent") from None
             if dry_run:
                 return {**base, "state": "preview", "cue": preview}
-            self._seen[normalized["event_id"]] = {"fingerprint": fingerprint, "state": "attempted"}
+            self._seen[normalized["event_id"]] = {"fingerprint": fingerprint, "state": "attempted", "at": now}
             try:
                 result = self.cues.run_cue(cue, dry_run=False, allow_live=allow_live)
                 state = result.get("state")
-                if state not in ("completed", "failed"):
+                if state not in ("completed", "failed", "cancelled"):
                     raise ValueError()
                 self._seen[normalized["event_id"]]["state"] = state
                 return {**base, "state": state, "cue": result}

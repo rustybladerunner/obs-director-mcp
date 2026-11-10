@@ -2,10 +2,12 @@
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from copy import deepcopy
+import io
 import json
 from pathlib import Path
 import sys
 import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -102,7 +104,7 @@ class CueTests(unittest.TestCase):
     def test_default_dry_run_validates_every_step_without_mutation_wait_or_files(self):
         plan = cue(self.select, {"action": "wait", "seconds": 3}, self.mute)
         original = deepcopy(plan)
-        with patch("obs_director.cues.time.sleep") as sleep, patch.object(Path, "open", side_effect=AssertionError("Cue wrote a file")):
+        with patch("obs_director.cues._wait", return_value=False) as sleep, patch.object(Path, "open", side_effect=AssertionError("Cue wrote a file")):
             result = self.service.run_cue(plan)
         self.assertEqual(["scene_select", "audio_mute"], self.production.validations)
         self.assertEqual([], self.production.mutations)
@@ -166,9 +168,10 @@ class CueTests(unittest.TestCase):
         self.assertEqual([], self.production.mutations)
 
     def test_expected_scene_rechecked_after_initial_wait(self):
-        def change_scene(_):
+        def change_scene(*_):
             self.production.current_scene = "Operator change"
-        with patch("obs_director.cues.time.sleep", side_effect=change_scene):
+            return False
+        with patch("obs_director.cues._wait", side_effect=change_scene):
             result = self.service.run_cue(cue({"action": "wait", "seconds": 1}, self.select), dry_run=False)
         self.assertEqual([], self.production.mutations)
         self.assertEqual(["completed", "failed"], [step["state"] for step in result["steps"]])
@@ -206,9 +209,9 @@ class CueTests(unittest.TestCase):
 
     def test_text_is_not_echoed_and_completed_waits_are_explicit(self):
         text = action("source_settings", source_name="Caption", settings={"text": SECRET})
-        with patch("obs_director.cues.time.sleep") as sleep:
+        with patch("obs_director.cues._wait", return_value=False) as sleep:
             result = self.service.run_cue(cue(text, {"action": "wait", "seconds": 0.25}), dry_run=False)
-        sleep.assert_called_once_with(0.25)
+        self.assertEqual([0.25], [call.args[1] for call in sleep.call_args_list])
         self.assertEqual("completed", result["state"])
         self.assertNotIn(SECRET, json.dumps(result))
         self.assertEqual(1, result["steps"][0]["parameters"]["settings_field_count"])
@@ -244,6 +247,100 @@ class CueTests(unittest.TestCase):
             self.assertEqual("completed", second_future.result(timeout=2)["state"])
         self.assertEqual(2, self.production.opened)
         self.assertEqual(4, len(self.production.mutations))
+
+
+class CueCancelTests(unittest.TestCase):
+    def setUp(self):
+        self.production = FakeProduction()
+        self.select = action("scene_select", scene_name="Replay", target="program")
+        self.mute = action("audio_mute", source_name="Microphone", muted=True)
+        self.long_plan = cue(self.select, {"action": "wait", "seconds": 10}, self.mute)
+
+    def start_long_cue(self, service):
+        """Run a cue on a thread and return once it is inside its 10 s wait."""
+        applied = threading.Event()
+        self.production.on_apply = lambda *_: applied.set()
+        pool = ThreadPoolExecutor(max_workers=1)
+        self.addCleanup(pool.shutdown)
+        future = pool.submit(service.run_cue, self.long_plan, False)
+        self.assertTrue(applied.wait(2))
+        time.sleep(0.2)
+        self.production.on_apply = None
+        return future
+
+    def test_cancel_during_wait_returns_quickly_with_honest_receipts(self):
+        service = CueService(self.production)
+        future = self.start_long_cue(service)
+        began = time.monotonic()
+        self.assertEqual({"cancel_requested": True, "cue_running": True}, service.cancel_cue())
+        result = future.result(timeout=2)
+        self.assertLess(time.monotonic() - began, 1.0)
+        self.assertEqual("cancelled", result["state"])
+        self.assertEqual(["completed", "cancelled", "skipped"], [step["state"] for step in result["steps"]])
+        self.assertEqual("cancelled", result["steps"][2]["reason"])
+        self.assertFalse(result["rollback_attempted"])
+        self.assertEqual(1, len(self.production.mutations))
+
+    def test_cancel_with_nothing_running_does_not_cancel_a_later_cue(self):
+        service = CueService(self.production)
+        self.assertEqual({"cancel_requested": False, "cue_running": False}, service.cancel_cue())
+        result = service.run_cue(cue(self.select, self.mute), dry_run=False)
+        self.assertEqual("completed", result["state"])
+        self.assertEqual(2, len(self.production.mutations))
+
+    def test_cancel_is_checked_before_every_step_not_only_waits(self):
+        service = CueService(self.production)
+        self.production.on_apply = lambda *_: service.cancel_cue()
+        result = service.run_cue(cue(self.select, self.mute, self.mute), dry_run=False)
+        self.assertEqual("cancelled", result["state"])
+        self.assertEqual(["completed", "skipped", "skipped"], [step["state"] for step in result["steps"]])
+        self.assertEqual(1, len(self.production.mutations))
+
+    def test_panic_live_applies_panic_cue_within_a_second_of_a_long_wait(self):
+        service = CueService(self.production, panic_cue={"name": "Safe scene", "steps": [action("scene_select", scene_name="Safe", target="program")]})
+        future = self.start_long_cue(service)
+        began = time.monotonic()
+        result = service.panic(dry_run=False)
+        self.assertLess(time.monotonic() - began, 1.0)
+        self.assertEqual("cancelled", future.result(timeout=2)["state"])
+        self.assertEqual("completed", result["panic_cue"]["state"])
+        self.assertEqual("Safe", self.production.current_scene)
+        self.assertEqual("scene_select", self.production.mutations[-1][0])
+
+    def test_panic_without_registered_cue_only_cancels(self):
+        with patch.dict("os.environ", {}, clear=True):
+            service = CueService(self.production)
+        future = self.start_long_cue(service)
+        result = service.panic(dry_run=False)
+        self.assertEqual("cancelled", future.result(timeout=2)["state"])
+        self.assertTrue(result["cancel"]["cancel_requested"])
+        self.assertIsNone(result["panic_cue"])
+        self.assertEqual(1, len(self.production.mutations))
+
+    def test_panic_dry_run_changes_and_cancels_nothing(self):
+        service = CueService(self.production, panic_cue=cue(self.mute))
+        idle = service.panic()
+        self.assertTrue(idle["dry_run"])
+        self.assertEqual("preview", idle["panic_cue"]["state"])
+        future = self.start_long_cue(service)
+        self.assertTrue(service.panic()["dry_run"])
+        self.assertFalse(future.done())
+        service.cancel_cue()
+        self.assertEqual("cancelled", future.result(timeout=2)["state"])
+        self.assertEqual(1, len(self.production.mutations))
+
+    def test_panic_cue_file_is_bounded_and_invalid_cues_are_rejected(self):
+        document = {"schema": "obs.panic-cue.v1", "cue": cue(self.mute)}
+        env = {"OBS_MCP_PANIC_CUE": str(Path.cwd() / "runtime" / "panic.json")}
+        with patch.dict("os.environ", env), patch.object(Path, "open", return_value=io.BytesIO(json.dumps(document).encode())):
+            self.assertIsNotNone(CueService(self.production)._panic_cue)
+        for content in (b"not-a-real-secret", b"x" * (128 * 1024 + 1), b'{"schema":"wrong","cue":{}}'):
+            with patch.dict("os.environ", env), patch.object(Path, "open", return_value=io.BytesIO(content)):
+                with self.assertRaises(CueValidationError) as raised:
+                    CueService(self.production)
+                self.assertNotIn("not-a-real-secret", str(raised.exception))
+        with self.assertRaises(CueValidationError):
+            CueService(self.production, panic_cue={"name": "x", "steps": []})
 
 
 class CueProductionIntegrationTests(unittest.TestCase):
