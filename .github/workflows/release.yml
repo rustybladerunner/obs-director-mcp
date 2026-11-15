@@ -100,7 +100,7 @@ jobs:
       - name: Keep the Sigstore bundle next to the checksums
         env:
           BUNDLE: ${{ steps.sign-sums.outputs.bundle-path }}
-        run: cp -- "$BUNDLE" dist/SHA256SUMS.txt.sigstore
+        run: cp -- "$BUNDLE" dist/SHA256SUMS.txt.sigstore.json
       - name: Create the GitHub release as github-actions[bot]
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -112,4 +112,4 @@ jobs:
             --title "$RELEASE_TAG" \
             --notes "Built by CI from this tag. Verify before use: see docs/VERIFYING.md." \
             dist/*.tar.gz dist/*.whl dist/release-manifest.json \
-            dist/SHA256SUMS.txt dist/SHA256SUMS.txt.sigstore
+            dist/SHA256SUMS.txt dist/SHA256SUMS.txt.sigstore.json
