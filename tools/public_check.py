@@ -102,6 +102,16 @@ def placeholder(value: str) -> bool:
     )
 
 
+def workflow_permission(key: str, value: str, filename: str) -> bool:
+    """`id-token: write` in a GitHub Actions workflow grants the job an OIDC scope; it holds no
+    secret. Only the three permission levels, and only under .github/workflows/, are excused."""
+    return (
+        PurePosixPath(filename).parts[:2] == (".github", "workflows")
+        and key == "id_token"
+        and value in {"read", "write", "none"}
+    )
+
+
 def credential_assignment(line: str, filename: str) -> bool:
     # Only literals are evidence. Identifiers, environment reads and function calls are not.
     for match in ASSIGNMENT.finditer(line):
@@ -109,6 +119,8 @@ def credential_assignment(line: str, filename: str) -> bool:
         if not SENSITIVE_KEY.search(key):
             continue
         rhs = line[match.end():].strip()
+        if workflow_permission(key, rhs.split("#", 1)[0].strip().strip("\"'").rstrip(","), filename):
+            continue
         quoted = QUOTED.match(rhs)
         if quoted:
             if not placeholder(quoted[2]):
