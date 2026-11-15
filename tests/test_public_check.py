@@ -76,6 +76,19 @@ class PublicCheckTests(unittest.TestCase):
         self.write("client.py", key + ' = "synthetic-unsafe-value"\n')
         self.assertIn("tree/credential_assignment", self.categories())
 
+    def test_workflow_oidc_permission_is_not_a_credential(self):
+        key = "id-" + "token"
+        self.write(".github/workflows/release.yml", f"permissions:\n  {key}: write  # OIDC\n")
+        self.assertNotIn("tree/credential_assignment", self.categories())
+
+    def test_workflow_permission_excuse_is_narrow(self):
+        key = "id-" + "token"
+        self.write(".github/workflows/release.yml", f"env:\n  {key}: synthetic-unsafe-value\n")
+        self.assertIn("tree/credential_assignment", self.categories())
+        shutil.rmtree(self.root / ".github")
+        self.write("deploy/config.yml", f"{key}: write\n")
+        self.assertIn("tree/credential_assignment", self.categories())
+
     def test_env_file_rejected_even_without_secret(self):
         self.write(".env", "MODE=local\n")
         self.assertIn("tree/credential_file", self.categories())
