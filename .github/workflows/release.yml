@@ -1,0 +1,115 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and release (for example v0.2.0-alpha.5)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+  PYTHONDONTWRITEBYTECODE: '1'
+  OBS_MCP_PORT: '1'
+  OBS_MCP_PASSWORD: not-a-real-secret
+  OBS_MCP_ALLOW_OUTPUT_CONTROL: '0'
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write      # create the release and upload assets
+      id-token: write      # Sigstore keyless signing identity (OIDC)
+      attestations: write  # store the build attestations
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - name: Preserve exact source bytes across platforms
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14.0'
+          architecture: x64
+      - name: Install hash-locked wheels
+        run: >-
+          python -m pip install --require-hashes --only-binary=:all: -r requirements-ci.lock
+      - name: Tag must match the version in pyproject.toml and be on main
+        run: |
+          python - <<'PY'
+          import os, re, sys, tomllib
+          tag = os.environ["RELEASE_TAG"]
+          version = tomllib.load(open("pyproject.toml", "rb"))["project"]["version"]
+          m = re.fullmatch(r"v(\d+\.\d+\.\d+)(?:-?(alpha|beta|rc|a|b)\.?(\d+))?", tag)
+          if not m:
+              sys.exit(f"tag {tag!r} is not vX.Y.Z or vX.Y.Z-alpha.N / -beta.N / -rc.N")
+          short = {"alpha": "a", "beta": "b"}.get(m[2], m[2] or "")
+          expected = m[1] + (short + m[3] if m[2] else "")
+          if expected != version:
+              sys.exit(f"tag {tag} means version {expected}, pyproject.toml says {version}")
+          print(f"tag {tag} matches version {version}")
+          PY
+          git merge-base --is-ancestor HEAD origin/main \
+            || { echo "tagged commit is not on main"; exit 1; }
+      - name: Scan public source and index
+        run: python tools/public_check.py
+      - name: Unit and negative-control tests
+        run: python -m unittest discover -s tests -v
+      - name: Build sdist and wheel
+        run: python tools/build_release.py
+      - name: Inspect exact archive contents and hashes
+        run: python tools/verify_dist.py --write-manifest dist/release-manifest.json
+      - name: Smoke-test the installed wheel
+        run: |
+          python -m pip install --no-deps --no-index dist/*.whl
+          python tools/smoke.py --installed
+      - name: Write SHA256SUMS.txt
+        working-directory: dist
+        run: |
+          sha256sum -- *.tar.gz *.whl release-manifest.json > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+      - name: Attest every release file
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.whl
+            dist/release-manifest.json
+            dist/SHA256SUMS.txt
+      - name: Sign SHA256SUMS.txt keylessly (Sigstore bundle)
+        id: sign-sums
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/SHA256SUMS.txt
+      - name: Keep the Sigstore bundle next to the checksums
+        env:
+          BUNDLE: ${{ steps.sign-sums.outputs.bundle-path }}
+        run: cp -- "$BUNDLE" dist/SHA256SUMS.txt.sigstore.json
+      - name: Create the GitHub release as github-actions[bot]
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          flag=""
+          if [[ "$RELEASE_TAG" =~ [0-9-](a|b|rc|alpha|beta)[.0-9]*$ ]]; then flag="--prerelease"; fi
+          gh release create "$RELEASE_TAG" $flag --verify-tag \
+            --title "$RELEASE_TAG" \
+            --notes "Built by CI from this tag. Verify before use: see docs/VERIFYING.md." \
+            dist/*.tar.gz dist/*.whl dist/release-manifest.json \
+            dist/SHA256SUMS.txt dist/SHA256SUMS.txt.sigstore.json
